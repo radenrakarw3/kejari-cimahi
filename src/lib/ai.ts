@@ -291,18 +291,19 @@ NOMOR RW YANG VALID (format 2 digit):
 ${validRw.map((r) => "RW " + r).join(", ")}
 
 INSTRUKSI:
-1. Balas dengan natural—seperti admin manusia yang hangat dan sigap. Jangan terdengar seperti template atau bot.
+1. Balas seperti admin manusia yang hangat dan sigap. Jangan terdengar seperti template atau bot.
 2. Jawab pertanyaan warga dari data laporan mereka atau bank data admin. Jangan mengarang.
-3. Jika warga ingin melapor, kumpulkan 4 data ini secara natural mengikuti alur percakapan: nama lengkap, kelurahan, nomor RW, dan isi/inti laporan. Tidak harus berurutan kaku.
-4. Jika pesan ini mengandung info baru (nama/kelurahan/rw/isi laporan), masukkan ke fields.
-5. Kelurahan HARUS dari daftar valid. Jika tidak cocok, tanyakan pelan-pelan dengan opsi yang tersedia.
-6. RW format 2 digit (01-14). Jika tidak valid, minta balas ulang.
-7. Jika semua 4 data sudah lengkap (dari riwayat + pesan ini), set action = "create_report".
-8. Jangan pernah bilang kamu AI, bot, atau sistem otomatis.
-9. Jangan gunakan markdown (* _ # **).
-10. Maksimal 380 karakter untuk reply.
-11. Jika warga minta batal/reset/mulai ulang, set action = "reset".
-12. Fields: isi hanya dengan nilai BARU dari pesan ini saja. null jika tidak ada info baru.
+3. Kumpulkan 4 data ini secara natural: nama lengkap, kelurahan, nomor RW, dan isi/inti laporan. Tidak harus berurutan kaku—ikuti alur percakapan.
+4. PENTING: Jika nama belum diketahui, SELALU akhiri balasan dengan menanyakan nama warga secara natural, apapun isi pesannya.
+5. Jika pesan ini mengandung info baru (nama/kelurahan/rw/isi laporan), masukkan ke fields.
+6. Kelurahan HARUS dari daftar valid. Jika tidak cocok, tanyakan pelan-pelan.
+7. RW format 2 digit (01-14). Jika tidak valid, minta balas ulang.
+8. Jika semua 4 data sudah lengkap (dari riwayat + pesan ini), set action = "create_report".
+9. Jangan pernah bilang kamu AI, bot, atau sistem otomatis.
+10. Jangan gunakan markdown (* _ # **).
+11. Maksimal 380 karakter untuk reply.
+12. Jika warga minta batal/reset/mulai ulang, set action = "reset".
+13. Fields: isi hanya dengan nilai BARU dari pesan ini saja. null jika tidak ada info baru.
 
 Balas HANYA dalam format JSON valid ini (tidak ada teks lain di luar JSON):
 {
@@ -322,30 +323,28 @@ action pilihan: "none", "update_fields", "create_report", "reset"`;
     const result = await model.generateContent(prompt);
     const text = result.response.text().trim();
     const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error("No JSON in response");
+    if (!jsonMatch) throw new Error(`AI returned non-JSON: ${text.slice(0, 200)}`);
 
     const parsed = JSON.parse(jsonMatch[0]) as ConversationResult;
     return parsed;
-  } catch {
-    // Fallback: cek field mana yang belum ada, tanya yang pertama belum ada
-    const missingField = !collectedFields.nama
-      ? "nama lengkap"
-      : !collectedFields.kelurahan
-        ? "kelurahan"
-        : !collectedFields.rw
-          ? "nomor RW"
-          : !collectedFields.isiLaporan
-            ? "inti laporan atau pengaduan"
-            : null;
+  } catch (err) {
+    console.error("[processConversation] AI error:", err);
 
-    const fallbackReply = missingField
-      ? `Terima kasih sudah menghubungi SAHATE Kejari Cimahi. Boleh saya bantu catat ${missingField} Bapak/Ibu terlebih dahulu?`
-      : "Terima kasih sudah menghubungi SAHATE Kejari Cimahi. Ada yang bisa saya bantu?";
+    const { nama, kelurahan, rw, isiLaporan } = collectedFields;
 
-    return {
-      reply: fallbackReply,
-      action: "none",
-      fields: {},
-    };
+    if (!nama) {
+      return { reply: "Halo, saya bantu ya. Boleh minta nama lengkap dulu?", action: "none", fields: {} };
+    }
+    if (!kelurahan) {
+      return { reply: `Oke ${nama}, boleh disebutkan kelurahannya di mana?`, action: "none", fields: {} };
+    }
+    if (!rw) {
+      return { reply: `Siap, lalu nomor RW-nya berapa?`, action: "none", fields: {} };
+    }
+    if (!isiLaporan) {
+      return { reply: `Baik, ceritakan saja inti pengaduan atau kebutuhan hukumnya ya, santai saja.`, action: "none", fields: {} };
+    }
+
+    return { reply: "Baik, ada yang bisa saya bantu lebih lanjut?", action: "none", fields: {} };
   }
 }
