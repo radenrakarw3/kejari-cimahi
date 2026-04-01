@@ -224,7 +224,7 @@ Isi: ${entry.content}`
 
 function isReportIntent(message: string): boolean {
   const normalized = message.toLowerCase();
-  return [
+  const directPhrases = [
     "buat laporan",
     "mau lapor",
     "ingin lapor",
@@ -242,7 +242,131 @@ function isReportIntent(message: string): boolean {
     "ingin mengadukan",
     "mau buat pengaduan",
     "ingin buat pengaduan",
-  ].some((keyword) => normalized.includes(keyword));
+    "mau buat aduan",
+    "ingin buat aduan",
+    "mau bikin aduan",
+    "ingin bikin aduan",
+    "saya mau mengadu",
+    "saya ingin mengadu",
+    "cara lapor",
+    "cara membuat laporan",
+    "cara bikin laporan",
+    "cara pengaduan",
+    "bagaimana cara lapor",
+    "bagaimana cara membuat laporan",
+    "link laporan",
+    "form laporan",
+    "link pengaduan",
+  ];
+
+  if (directPhrases.some((keyword) => normalized.includes(keyword))) {
+    return true;
+  }
+
+  const hasReportNoun = /\b(lapor|laporan|pengaduan|aduan)\b/i.test(normalized);
+  const hasActionWord = /\b(mau|ingin|buat|bikin|ajukan|kirim|isi|sampaikan|cara|bagaimana|form|link)\b/i.test(
+    normalized
+  );
+
+  return hasReportNoun && hasActionWord;
+}
+
+function shouldOfferReportForm(message: string, history: Array<{ role: "user" | "admin"; content: string }>): boolean {
+  if (isReportIntent(message)) {
+    return true;
+  }
+
+  const normalized = message.toLowerCase();
+  const userMessageCount = [...history, { role: "user" as const, content: message }].filter(
+    (item) => item.role === "user"
+  ).length;
+
+  const caseKeywords = [
+    "ditipu",
+    "penipuan",
+    "penggelapan",
+    "pemerasan",
+    "pengancaman",
+    "diancam",
+    "ancaman",
+    "penganiayaan",
+    "kekerasan",
+    "pelecehan",
+    "korupsi",
+    "pungli",
+    "penyalahgunaan anggaran",
+    "sengketa",
+    "tanah",
+    "waris",
+    "utang",
+    "piutang",
+    "phk",
+    "gaji",
+    "upah",
+    "barang bukti",
+    "tilang",
+  ];
+
+  const helpSeekingPhrases = [
+    "bagaimana ya",
+    "gimana ya",
+    "harus bagaimana",
+    "harus gimana",
+    "mohon bantuan",
+    "tolong bantu",
+    "bisa bantu",
+    "minta bantuan",
+    "ingin dibantu",
+    "saya bingung",
+    "saya dirugikan",
+    "saya menjadi korban",
+    "apa yang harus saya lakukan",
+    "langkah saya bagaimana",
+    "mau mengadu",
+    "ingin mengadu",
+  ];
+
+  const infoOnlyPhrases = [
+    "apa itu",
+    "arti",
+    "maksud",
+    "berapa",
+    "jam berapa",
+    "di mana",
+    "alamat",
+    "siapa kepala",
+    "siapa kepala kejari",
+    "apa tugas",
+    "apa fungsi",
+    "bagaimana alur",
+    "syarat",
+  ];
+
+  const hasCaseKeyword = caseKeywords.some((keyword) => normalized.includes(keyword));
+  const hasHelpSeekingPhrase = helpSeekingPhrases.some((keyword) => normalized.includes(keyword));
+  const looksInformationalOnly = infoOnlyPhrases.some((keyword) => normalized.includes(keyword));
+  const hasFirstPersonNarrative =
+    /\b(saya|kami|ayah saya|ibu saya|adik saya|kakak saya|suami saya|istri saya)\b/i.test(normalized) &&
+    /\b(kena|jadi korban|dialami|terjadi|ditipu|dipukul|diancam|dirugikan|diserang|bermasalah)\b/i.test(normalized);
+  const isLongNarrative = normalized.length >= 80;
+
+  if (looksInformationalOnly && !hasHelpSeekingPhrase) {
+    return false;
+  }
+
+  if (hasCaseKeyword && hasHelpSeekingPhrase) {
+    return true;
+  }
+
+  if (hasCaseKeyword && hasFirstPersonNarrative && userMessageCount <= 2) {
+    return true;
+  }
+
+  if (hasCaseKeyword && isLongNarrative && userMessageCount <= 2) {
+    return true;
+  }
+
+  return false;
 }
 
 function normalizePersonName(value: string): string {
@@ -268,7 +392,22 @@ function detectName(text: string): string | null {
     const match = normalized.match(pattern);
     if (match?.[1]) {
       const candidate = normalizePersonName(match[1]);
-      if (candidate.length >= 2) {
+      const blockedTokens = [
+        "Lapor",
+        "Laporan",
+        "Pengaduan",
+        "Aduan",
+        "Bikin",
+        "Buat",
+        "Membuat",
+        "Mengadu",
+        "Mengadukan",
+        "Kasus",
+      ];
+      if (
+        candidate.length >= 2 &&
+        !blockedTokens.some((token) => candidate.split(" ").includes(token))
+      ) {
         return candidate;
       }
     }
@@ -330,7 +469,7 @@ function inferPersonContext(
   } else if (name && gender === "female") {
     preferredGreeting = `Ibu ${name}`;
   } else if (name) {
-    preferredGreeting = name;
+    preferredGreeting = `Bapak/Ibu ${name}`;
   }
 
   return { name, gender, preferredGreeting };
@@ -354,9 +493,9 @@ export async function answerWhatsAppFromKnowledge(params: {
   const languageGuide = buildLanguageVariationGuide(message);
   const toneMode = await getAssistantToneMode();
 
-  if (isReportIntent(message)) {
+  if (shouldOfferReportForm(message, history)) {
     return {
-      reply: `${emotionalContext.needsComfort ? `${emotionalContext.comfortLine} ` : ""}Tentu ${person.preferredGreeting}, kalau mau buat laporan resmi bisa langsung isi lewat link ini ya: ${normalizedReportFormUrl}. Setelah dikirim, tim kami akan menindaklanjuti sesuai alur yang berlaku.`,
+      reply: `${emotionalContext.needsComfort ? `${emotionalContext.comfortLine} ` : ""}Tentu ${person.preferredGreeting}, untuk pencatatan laporan resmi memang dilakukan melalui web, bukan lewat WhatsApp. Silakan isi formulir laporan di link ini ya: ${normalizedReportFormUrl}. Setelah terkirim, tim kami akan menindaklanjuti sesuai alur yang berlaku.`,
       usedKnowledge: false,
       routeToReportForm: true,
     };
@@ -373,8 +512,7 @@ export async function answerWhatsAppFromKnowledge(params: {
   if (knowledgeEntries.length === 0) {
     return {
       reply:
-        `${emotionalContext.needsComfort ? `${emotionalContext.comfortLine} ` : ""}Terima kasih ${person.preferredGreeting}, pesan Anda sudah kami terima. Untuk memastikan informasinya tepat, pertanyaan ini akan kami bantu cek lebih lanjut oleh admin. ${languageGuide.closing} Jika ingin membuat laporan resmi, silakan isi lewat link ini ya: ` +
-        `${normalizedReportFormUrl}`,
+        `${emotionalContext.needsComfort ? `${emotionalContext.comfortLine} ` : ""}Terima kasih ${person.preferredGreeting}, pesan Anda sudah kami terima. Untuk memastikan informasinya tepat, pertanyaan ini akan kami bantu cek lebih lanjut oleh admin. ${languageGuide.closing}`,
       usedKnowledge: false,
       routeToReportForm: false,
     };
@@ -398,20 +536,19 @@ ATURAN UTAMA:
 3. Jika warga sedang menghadapi persoalan, awali dengan empati dan rasa prihatin yang natural sebelum masuk ke informasi inti.
 4. Tujuan utama balasan adalah membantu menenangkan hati dan pikiran warga, tanpa terkesan berlebihan atau dibuat-buat.
 5. Jika referensi tidak cukup untuk menjawab lengkap, sampaikan dengan sopan bahwa admin akan membantu mengecek lebih lanjut.
-6. Jika warga terlihat ingin tahu prosedur laporan, arahkan dengan lembut ke link ini: ${normalizedReportFormUrl}
-7. Maksimal 500 karakter.
-8. Tetap gunakan sapaan yang sopan seperti "Bapak", "Ibu", atau "Bapak/Ibu".
-9. Jika nama warga sudah diketahui, sebut namanya secara natural agar terasa personal.
-10. Jika gender terindikasi laki-laki, gunakan sapaan seperti "Bapak ${person.name ?? ""}" bila terasa natural.
-11. Jika gender terindikasi perempuan, gunakan sapaan seperti "Ibu ${person.name ?? ""}" bila terasa natural.
-12. Jika nama belum diketahui atau gender tidak jelas, gunakan sapaan netral seperti "Bapak/Ibu".
-13. Jangan terdengar menggurui, jangan terlalu administratif, dan jangan langsung lompat ke prosedur tanpa sentuhan empati.
-14. Variasikan perbendaharaan kata agar terasa seperti percakapan manusia, bukan template yang diulang-ulang.
-15. Gunakan sinonim dan variasi susunan kalimat secara natural, tetapi isi faktanya tetap harus sama dengan referensi.
-16. Hindari pembuka yang sama terus-menerus seperti "Baik" atau "Terima kasih" di setiap jawaban jika ada pilihan lain yang lebih natural.
-17. Boleh gunakan variasi frasa seperti "izinkan kami bantu jelaskan", "supaya lebih jelas", "jadi begini ya", "untuk gambaran awal", "kalau mengacu pada informasi yang kami miliki", selama tetap sopan.
-18. Penutup juga perlu bervariasi, misalnya "silakan sampaikan lagi", "kami siap bantu jelaskan", "bila masih ada yang mengganjal", dan jangan mengulang frasa penutup yang sama terus.
-19. Jika ada empati, rangkai dengan kata-kata yang lembut dan bervariasi, jangan memakai kalimat belasungkawa yang identik di setiap balasan.
+6. Jika warga menceritakan kasus konkret, terlihat sedang mencari tindak lanjut, atau butuh bantuan penanganan kasusnya, prioritaskan arahkan lebih cepat ke form laporan web.
+7. Jika perlu mengarahkan laporan, jelaskan dengan natural bahwa pencatatan laporan resmi dilakukan melalui web, bukan lewat WhatsApp, lalu berikan link ini: ${normalizedReportFormUrl}
+8. Maksimal 500 karakter.
+9. Gunakan sapaan yang konsisten mengikuti rekomendasi ini: "${person.preferredGreeting}". Jangan mengganti ke sapaan lain di jawaban yang sama.
+10. Jika nama warga sudah diketahui, sebut namanya secara natural agar terasa personal.
+11. Jika gender belum jelas, tetap gunakan sapaan netral yang konsisten dan jangan menebak-nebak gender.
+12. Jangan terdengar menggurui, jangan terlalu administratif, dan jangan langsung lompat ke prosedur tanpa sentuhan empati.
+13. Variasikan perbendaharaan kata agar terasa seperti percakapan manusia, bukan template yang diulang-ulang.
+14. Gunakan sinonim dan variasi susunan kalimat secara natural, tetapi isi faktanya tetap harus sama dengan referensi.
+15. Hindari pembuka yang sama terus-menerus seperti "Baik" atau "Terima kasih" di setiap jawaban jika ada pilihan lain yang lebih natural.
+16. Boleh gunakan variasi frasa seperti "izinkan kami bantu jelaskan", "supaya lebih jelas", "jadi begini ya", "untuk gambaran awal", "kalau mengacu pada informasi yang kami miliki", selama tetap sopan.
+17. Penutup juga perlu bervariasi, misalnya "silakan sampaikan lagi", "kami siap bantu jelaskan", "bila masih ada yang mengganjal", dan jangan mengulang frasa penutup yang sama terus.
+18. Jika ada empati, rangkai dengan kata-kata yang lembut dan bervariasi, jangan memakai kalimat belasungkawa yang identik di setiap balasan.
 
 RIWAYAT CHAT:
 ${historyText}
