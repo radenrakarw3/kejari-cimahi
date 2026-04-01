@@ -46,7 +46,7 @@ const steps = [
   { no: "01", title: "Isi Formulir", desc: "Isi data diri dan uraian laporan secara bertahap", icon: FileText },
   { no: "02", title: "Kategorisasi AI", desc: "Sistem otomatis mengkategorikan laporan Anda", icon: CheckCircle },
   { no: "03", title: "Konfirmasi WA", desc: "Nomor laporan terkirim ke WhatsApp Anda", icon: MessageSquare },
-  { no: "04", title: "Ditindaklanjuti", desc: "Tim Kejari Cimahi memproses laporan Anda", icon: Building2 },
+  { no: "04", title: "Ditindaklanjuti", desc: "Tim SAHATE Kejari Cimahi memproses laporan Anda", icon: Building2 },
 ];
 
 const layanan = [
@@ -84,7 +84,7 @@ export default function LandingPage() {
             >
               <Image
                 src="/logo-kejari.svg"
-                alt="Logo Kejari"
+                alt="Logo SAHATE Kejari Cimahi"
                 width={32}
                 height={32}
                 className="object-contain"
@@ -92,9 +92,9 @@ export default function LandingPage() {
               />
             </div>
             <div>
-              <div className="font-bold text-sm leading-none" style={{ color: "#f0b429" }}>Kejaksaan Negeri Cimahi</div>
+              <div className="font-bold text-sm leading-none" style={{ color: "#f0b429" }}>SAHATE Kejari Cimahi</div>
               <div className="text-[10px] leading-none mt-0.5 font-medium" style={{ color: "#a8d5b5" }}>
-                Satya Adhi Wicaksana
+                Mudah, Cepat, dan Terintegrasi
               </div>
             </div>
           </div>
@@ -104,7 +104,7 @@ export default function LandingPage() {
               className="font-bold rounded text-sm px-5"
               style={{ backgroundColor: "#f0b429", color: "#071f0d" }}
             >
-              Buat Laporan
+              Akses Layanan
             </Button>
           </Link>
         </div>
@@ -148,13 +148,12 @@ export default function LandingPage() {
                 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold leading-tight mb-4"
                 style={{ color: "#f5c518" }}
               >
-                Portal Layanan &{" "}
-                <span style={{ color: "#c8e6d0" }}>Laporan Masyarakat</span>
+                SAHATE{" "}
+                <span style={{ color: "#c8e6d0" }}>Kejari Cimahi</span>
               </motion.h1>
 
               <motion.p variants={fadeUp} className="text-base mb-8 leading-relaxed max-w-lg mx-auto lg:mx-0" style={{ color: "#a8d5b5" }}>
-                Platform khusus pelayanan publik dan pengaduan masyarakat Kejaksaan Negeri Cimahi.
-                Sampaikan laporan Anda dengan mudah, aman, dan terpantau.
+                Sahabat Hukum Terpadu Kejaksaan Negeri Cimahi. Platform layanan hukum digital yang hadir sepenuh hati untuk pengaduan masyarakat, konsultasi, edukasi hukum, dan helpdesk terintegrasi WhatsApp.
               </motion.p>
 
               <motion.div variants={fadeUp} className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start">
@@ -165,7 +164,7 @@ export default function LandingPage() {
                     style={{ backgroundColor: "#f0b429", color: "#071f0d" }}
                   >
                     <FileText className="w-4 h-4 mr-2" />
-                    Buat Laporan via Web
+                    Buat Pengaduan via Web
                   </Button>
                 </Link>
                 <Button
@@ -175,15 +174,15 @@ export default function LandingPage() {
                   style={{ borderColor: "rgba(240,180,41,0.4)", color: "#f0b429", backgroundColor: "transparent" }}
                 >
                   <Phone className="w-4 h-4 mr-2" />
-                  Lapor via WhatsApp
+                  Konsultasi via WhatsApp
                 </Button>
               </motion.div>
 
               <motion.div variants={fadeUp} className="flex items-center gap-5 mt-8 justify-center lg:justify-start">
                 {[
                   { icon: Clock, text: "Respons Cepat" },
-                  { icon: CheckCircle, text: "Terverifikasi" },
-                  { icon: MessageSquare, text: "Konfirmasi WA" },
+                  { icon: CheckCircle, text: "Transparan" },
+                  { icon: MessageSquare, text: "Terintegrasi WA" },
                 ].map((item) => (
                   <div key={item.text} className="flex items-center gap-1.5 text-xs" style={{ color: "#a8d5b5" }}>
                     <item.icon className="w-3.5 h-3.5" style={{ color: "#f0b429" }} />
@@ -200,7 +199,7 @@ export default function LandingPage() {
               >
                 <Image
                   src="/logo-kejari.svg"
-                  alt="Logo Kejari Cimahi"
+                  alt="Logo SAHATE Kejari Cimahi"
                   width={152}
                   height={152}
                   className="object-contain drop-shadow-lg"
@@ -234,7 +233,7 @@ export default function LandingPage() {
               Proses Laporan yang Mudah & Terstruktur
             </motion.h2>
             <motion.p variants={fadeUp} className="max-w-xl mx-auto text-sm" style={{ color: "#a8d5b5" }}>
-              Ikuti 4 langkah sederhana untuk menyampaikan laporan Anda kepada Kejari Cimahi
+              Ikuti 4 langkah sederhana untuk menyampaikan kebutuhan layanan Anda melalui SAHATE Kejari Cimahi
             </motion.p>
           </motion.div>
 

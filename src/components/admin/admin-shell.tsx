@@ -23,7 +23,7 @@ const NAV_ITEMS = [
   { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/laporan", label: "Semua Laporan", icon: FileText },
   { href: "/admin/laporan/baru", label: "Input Laporan", icon: PlusSquare },
-  { href: "/admin/ai-assistant", label: "AI Assistant", icon: Sparkles },
+  { href: "/admin/ai-assistant", label: "Asisten AI SAHATE", icon: Sparkles },
   { href: "/admin/skm", label: "Survey (SKM)", icon: Star },
 ];
 
@@ -72,7 +72,7 @@ export function AdminShell({ children, session }: AdminShellProps) {
           >
             <Image
               src="/logo-kejari.svg"
-              alt="Logo Kejari"
+              alt="Logo SAHATE Kejari Cimahi"
               width={36}
               height={36}
               className="object-contain"
@@ -80,9 +80,9 @@ export function AdminShell({ children, session }: AdminShellProps) {
             />
           </div>
           <div className="min-w-0">
-            <div className="font-bold text-sm leading-none truncate" style={{ color: "#f0b429" }}>Kejari Cimahi</div>
+            <div className="font-bold text-sm leading-none truncate" style={{ color: "#f0b429" }}>SAHATE Kejari</div>
             <div className="text-[10px] leading-none mt-1 truncate" style={{ color: "#a8d5b5" }}>
-              Admin Panel
+              Panel Admin Cimahi
             </div>
           </div>
           <button
@@ -197,7 +197,7 @@ export function AdminShell({ children, session }: AdminShellProps) {
                 onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
               />
             </div>
-            <span className="font-semibold text-sm" style={{ color: "#f0b429" }}>Kejari Cimahi</span>
+            <span className="font-semibold text-sm" style={{ color: "#f0b429" }}>SAHATE Kejari</span>
           </div>
           <div className="w-5" />
         </header>

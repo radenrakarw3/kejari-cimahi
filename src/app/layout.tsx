@@ -10,10 +10,17 @@ const poppins = Poppins({
 });
 
 export const metadata: Metadata = {
-  title: "Layanan & Laporan - Kejari Cimahi",
+  title: "SAHATE Kejari Cimahi",
   description:
-    "Portal pelayanan publik dan laporan masyarakat Kejaksaan Negeri Cimahi. Sampaikan laporan, akses layanan, dan pantau status pengaduan Anda.",
-  keywords: ["kejari cimahi", "laporan masyarakat", "pelayanan publik", "kejaksaan negeri cimahi", "pengaduan"],
+    "SAHATE Kejari Cimahi adalah Sistem Akses Hukum Terpadu dan Elektronik untuk layanan hukum, pengaduan masyarakat, informasi hukum, dan helpdesk terintegrasi WhatsApp.",
+  keywords: [
+    "sahate kejari cimahi",
+    "sistem akses hukum terpadu dan elektronik",
+    "kejari cimahi",
+    "laporan masyarakat",
+    "pelayanan hukum digital",
+    "pengaduan masyarakat",
+  ],
 };
 
 export default function RootLayout({

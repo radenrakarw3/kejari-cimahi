@@ -16,7 +16,20 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { KELURAHAN_CIMAHI, RW_OPTIONS } from "@/lib/kelurahan";
-import { ArrowLeft, ArrowRight, Send, User, Phone, MapPin, Home, FileText, Eye, CheckCircle2 } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Send,
+  User,
+  Phone,
+  MapPin,
+  Home,
+  FileText,
+  Eye,
+  CheckCircle2,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
 import { z } from "zod";
 
 interface FormData {
@@ -64,13 +77,20 @@ const slideVariants = {
 };
 
 const inputStyle = {
-  backgroundColor: "#145228",
-  borderColor: "rgba(240,180,41,0.25)",
+  backgroundColor: "rgba(7,31,13,0.42)",
+  borderColor: "rgba(240,180,41,0.18)",
   color: "#c8e6d0",
 };
 
 const labelStyle = { color: "#f0b429" };
 const errorStyle = { color: "#f87171" };
+const selectPopupStyle = {
+  backgroundColor: "#0c3418",
+  borderColor: "rgba(240,180,41,0.22)",
+  color: "#d9f0df",
+  boxShadow: "0 22px 60px rgba(2, 12, 6, 0.45)",
+  backdropFilter: "blur(14px)",
+};
 
 export function ReportWizard() {
   const router = useRouter();
@@ -143,9 +163,46 @@ export function ReportWizard() {
   };
 
   return (
-    <div className="w-full">
+    <div
+      className="w-full rounded-[28px] p-4 sm:p-5"
+      style={{
+        background:
+          "linear-gradient(180deg, rgba(240,180,41,0.08) 0%, rgba(8,36,17,0.86) 16%, rgba(9,43,19,0.96) 100%)",
+        border: "1px solid rgba(240,180,41,0.16)",
+        boxShadow: "0 30px 80px rgba(3, 14, 7, 0.28)",
+      }}
+    >
+      <div
+        className="mb-5 rounded-2xl px-4 py-3 sm:px-5"
+        style={{
+          backgroundColor: "rgba(240,180,41,0.08)",
+          border: "1px solid rgba(240,180,41,0.16)",
+        }}
+      >
+        <div className="flex items-start gap-3">
+          <div
+            className="flex h-10 w-10 items-center justify-center rounded-xl flex-shrink-0"
+            style={{ backgroundColor: "rgba(240,180,41,0.14)" }}
+          >
+            <ShieldCheck className="w-5 h-5" style={{ color: "#f0b429" }} />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: "#f0b429" }}>
+              <Sparkles className="w-3.5 h-3.5" />
+              SAHATE Pengaduan
+            </div>
+            <p className="mt-1 text-sm leading-relaxed" style={{ color: "#c8e6d0" }}>
+              Isi pengaduan Anda secara bertahap. Form ini dirancang agar rapi, aman, dan mudah diproses oleh tim SAHATE Kejari Cimahi.
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Progress */}
-      <div className="mb-7">
+      <div
+        className="mb-7 rounded-2xl px-4 py-4 sm:px-5"
+        style={{ backgroundColor: "rgba(7,31,13,0.28)", border: "1px solid rgba(240,180,41,0.08)" }}
+      >
         <div className="flex items-center justify-between text-xs mb-2" style={{ color: "#a8d5b5" }}>
           <span className="font-medium">Langkah {step + 1} dari {STEPS.length}</span>
           <span style={{ color: "#f0b429" }}>{Math.round(progress)}%</span>
@@ -174,7 +231,13 @@ export function ReportWizard() {
       </div>
 
       {/* Step content */}
-      <div className="overflow-hidden min-h-[300px] flex flex-col">
+      <div
+        className="overflow-hidden min-h-[300px] flex flex-col rounded-[24px] px-4 py-5 sm:px-5 sm:py-6"
+        style={{
+          backgroundColor: "rgba(5,24,11,0.34)",
+          border: "1px solid rgba(240,180,41,0.12)",
+        }}
+      >
         <AnimatePresence mode="wait" custom={direction}>
           <motion.div
             key={step}
@@ -186,32 +249,32 @@ export function ReportWizard() {
             className="flex-1"
           >
             {/* Step header */}
-            <div className="flex items-center gap-3 mb-6">
+            <div className="flex items-center gap-3 mb-7">
               <div
-                className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
-                style={{ backgroundColor: "rgba(240,180,41,0.15)" }}
+                className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
+                style={{ background: "linear-gradient(180deg, rgba(240,180,41,0.22), rgba(240,180,41,0.08))" }}
               >
                 {(() => {
                   const Icon = STEPS[step].icon;
                   return <Icon className="w-5 h-5" style={{ color: "#f0b429" }} />;
                 })()}
               </div>
-              <div>
-                <h2 className="font-bold text-lg leading-tight" style={{ color: "#f5c518" }}>{STEPS[step].title}</h2>
-                <p className="text-sm leading-tight" style={{ color: "#a8d5b5" }}>{STEPS[step].desc}</p>
+              <div className="min-w-0">
+                <h2 className="font-bold text-xl leading-tight" style={{ color: "#f5c518" }}>{STEPS[step].title}</h2>
+                <p className="text-sm leading-relaxed mt-1" style={{ color: "#a8d5b5" }}>{STEPS[step].desc}</p>
               </div>
             </div>
 
             {/* Step 0 — Nama */}
             {step === 0 && (
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label className="text-sm font-medium" style={labelStyle}>Nama Lengkap</Label>
                 <Input
                   placeholder="Contoh: Budi Santoso"
                   value={formData.nama}
                   onChange={(e) => updateField("nama", e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleNext()}
-                  className="h-11 rounded-lg text-sm placeholder:opacity-40"
+                  className="h-12 rounded-xl text-sm placeholder:opacity-40"
                   style={inputStyle}
                   autoFocus
                 />
@@ -221,7 +284,7 @@ export function ReportWizard() {
 
             {/* Step 1 — Nomor WA */}
             {step === 1 && (
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label className="text-sm font-medium" style={labelStyle}>Nomor WhatsApp</Label>
                 <Input
                   placeholder="08123456789"
@@ -230,7 +293,7 @@ export function ReportWizard() {
                   onKeyDown={(e) => e.key === "Enter" && handleNext()}
                   type="tel"
                   inputMode="numeric"
-                  className="h-11 rounded-lg text-sm placeholder:opacity-40"
+                  className="h-12 rounded-xl text-sm placeholder:opacity-40"
                   style={inputStyle}
                   autoFocus
                 />
@@ -241,21 +304,23 @@ export function ReportWizard() {
 
             {/* Step 2 — Kelurahan */}
             {step === 2 && (
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label className="text-sm font-medium" style={labelStyle}>Kelurahan</Label>
                 <Select
                   value={formData.kelurahan}
                   onValueChange={(v) => updateField("kelurahan", v ?? "")}
                 >
                   <SelectTrigger
-                    className="h-11 rounded-lg text-sm"
+                    className="h-12 w-full rounded-xl text-sm px-3"
                     style={inputStyle}
                   >
                     <SelectValue placeholder="Pilih kelurahan..." />
                   </SelectTrigger>
-                  <SelectContent style={{ backgroundColor: "#145228", borderColor: "rgba(240,180,41,0.2)", color: "#c8e6d0" }}>
+                  <SelectContent className="rounded-2xl p-2" style={selectPopupStyle}>
                     {KELURAHAN_CIMAHI.map((k) => (
-                      <SelectItem key={k} value={k} style={{ color: "#c8e6d0" }}>{k}</SelectItem>
+                      <SelectItem key={k} value={k} className="rounded-xl px-3 py-2.5 text-sm" style={{ color: "#d9f0df" }}>
+                        {k}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -265,21 +330,23 @@ export function ReportWizard() {
 
             {/* Step 3 — RW */}
             {step === 3 && (
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label className="text-sm font-medium" style={labelStyle}>RW (Rukun Warga)</Label>
                 <Select
                   value={formData.rw}
                   onValueChange={(v) => updateField("rw", v ?? "")}
                 >
                   <SelectTrigger
-                    className="h-11 rounded-lg text-sm"
+                    className="h-12 w-full rounded-xl text-sm px-3"
                     style={inputStyle}
                   >
                     <SelectValue placeholder="Pilih nomor RW..." />
                   </SelectTrigger>
-                  <SelectContent style={{ backgroundColor: "#145228", borderColor: "rgba(240,180,41,0.2)", color: "#c8e6d0" }}>
+                  <SelectContent className="rounded-2xl p-2" style={selectPopupStyle}>
                     {RW_OPTIONS.map((rw) => (
-                      <SelectItem key={rw} value={rw} style={{ color: "#c8e6d0" }}>RW {rw}</SelectItem>
+                      <SelectItem key={rw} value={rw} className="rounded-xl px-3 py-2.5 text-sm" style={{ color: "#d9f0df" }}>
+                        RW {rw}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -289,13 +356,13 @@ export function ReportWizard() {
 
             {/* Step 4 — Isi Laporan */}
             {step === 4 && (
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label className="text-sm font-medium" style={labelStyle}>Isi Laporan</Label>
                 <Textarea
                   placeholder="Ceritakan secara detail laporan Anda. Semakin detail, semakin cepat ditangani..."
                   value={formData.isiLaporan}
                   onChange={(e) => updateField("isiLaporan", e.target.value)}
-                  className="rounded-lg min-h-[150px] resize-none text-sm placeholder:opacity-40"
+                  className="rounded-2xl min-h-[170px] resize-none text-sm placeholder:opacity-40 px-4 py-3"
                   style={inputStyle}
                   autoFocus
                   maxLength={2000}
@@ -315,7 +382,7 @@ export function ReportWizard() {
 
             {/* Step 5 — Review */}
             {step === 5 && (
-              <div className="space-y-2.5">
+              <div className="space-y-3">
                 {[
                   { label: "Nama", value: formData.nama, icon: User },
                   { label: "WhatsApp", value: formData.nomorWa, icon: Phone },
@@ -324,8 +391,8 @@ export function ReportWizard() {
                 ].map((item) => (
                   <div
                     key={item.label}
-                    className="flex items-start gap-3 rounded-lg px-4 py-3"
-                    style={{ backgroundColor: "#145228", border: "1px solid rgba(240,180,41,0.18)" }}
+                    className="flex items-start gap-3 rounded-2xl px-4 py-3.5"
+                    style={{ backgroundColor: "rgba(7,31,13,0.42)", border: "1px solid rgba(240,180,41,0.14)" }}
                   >
                     <item.icon className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: "#f0b429" }} />
                     <div>
@@ -335,8 +402,8 @@ export function ReportWizard() {
                   </div>
                 ))}
                 <div
-                  className="rounded-lg px-4 py-3"
-                  style={{ backgroundColor: "#145228", border: "1px solid rgba(240,180,41,0.18)" }}
+                  className="rounded-2xl px-4 py-3.5"
+                  style={{ backgroundColor: "rgba(7,31,13,0.42)", border: "1px solid rgba(240,180,41,0.14)" }}
                 >
                   <div className="flex items-center gap-2 text-xs mb-1.5" style={{ color: "rgba(168,213,181,0.6)" }}>
                     <FileText className="w-4 h-4" style={{ color: "#f0b429" }} />
@@ -347,7 +414,7 @@ export function ReportWizard() {
                   </p>
                 </div>
                 <div
-                  className="flex items-start gap-2 text-xs rounded-lg px-4 py-3"
+                  className="flex items-start gap-2 text-xs rounded-2xl px-4 py-3.5"
                   style={{ backgroundColor: "rgba(240,180,41,0.1)", border: "1px solid rgba(240,180,41,0.25)", color: "#f5c518" }}
                 >
                   <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "#f0b429" }} />
@@ -366,8 +433,8 @@ export function ReportWizard() {
             variant="outline"
             onClick={handleBack}
             disabled={submitting}
-            className="flex-1 rounded-lg h-11 text-sm font-medium"
-            style={{ borderColor: "rgba(240,180,41,0.3)", color: "#a8d5b5", backgroundColor: "transparent" }}
+            className="flex-1 rounded-xl h-11 text-sm font-medium"
+            style={{ borderColor: "rgba(240,180,41,0.24)", color: "#c8e6d0", backgroundColor: "rgba(240,180,41,0.06)" }}
           >
             <ArrowLeft className="w-4 h-4 mr-1.5" />
             Kembali
@@ -377,7 +444,7 @@ export function ReportWizard() {
         {!isReviewStep ? (
           <Button
             onClick={handleNext}
-            className="flex-1 font-bold rounded-lg h-11 text-sm"
+            className="flex-1 font-bold rounded-xl h-11 text-sm"
             style={{ backgroundColor: "#f0b429", color: "#071f0d" }}
           >
             Lanjut
@@ -387,7 +454,7 @@ export function ReportWizard() {
           <Button
             onClick={handleSubmit}
             disabled={submitting}
-            className="flex-1 font-bold rounded-lg h-11 text-sm"
+            className="flex-1 font-bold rounded-xl h-11 text-sm"
             style={{ backgroundColor: submitting ? "#c9961e" : "#f0b429", color: "#071f0d" }}
           >
             {submitting ? (
@@ -398,7 +465,7 @@ export function ReportWizard() {
             ) : (
               <span className="flex items-center gap-2">
                 <Send className="w-4 h-4" />
-                Kirim Laporan
+                Kirim Pengaduan
               </span>
             )}
           </Button>

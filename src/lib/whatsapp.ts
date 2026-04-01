@@ -49,13 +49,14 @@ export async function sendWhatsApp(
 
 export function buildConfirmationMessage(
   nama: string,
-  nomorLaporan: string
+  nomorLaporan: string,
+  surveyUrl?: string
 ): string {
   return `Assalamualaikum Wr. Wb.
 
 Halo ${nama},
 
-Laporan Anda telah kami terima dengan nomor:
+Laporan Anda telah kami terima melalui SAHATE KEJARI CIMAHI dengan nomor:
 
 *${nomorLaporan}*
 
@@ -63,7 +64,11 @@ Simpan nomor ini untuk memantau status laporan Anda.
 
 Kami akan segera memproses laporan Anda dan menghubungi kembali jika diperlukan informasi tambahan.
 
-Terima kasih telah mempercayakan laporan Anda kepada Kejaksaan Negeri Cimahi.
+SAHATE adalah Sistem Akses Hukum Terpadu dan Elektronik Kejaksaan Negeri Cimahi.
+
+Terima kasih telah mempercayakan layanan hukum Anda kepada SAHATE Kejari Cimahi.
+
+${surveyUrl ? `Link survey resmi layanan:\n${surveyUrl}\n` : ""}
 
 Wassalamualaikum Wr. Wb.`;
 }

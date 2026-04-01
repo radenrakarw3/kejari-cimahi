@@ -42,7 +42,7 @@ export default async function SuksesPage({
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 text-sm" style={{ color: "#a8d5b5" }}>
             <Image src="/logo-kejari.svg" alt="Logo" width={20} height={20} className="object-contain opacity-70" />
-            Kejaksaan Negeri Cimahi
+            SAHATE Kejari Cimahi
           </div>
         </div>
 

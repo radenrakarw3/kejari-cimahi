@@ -3,8 +3,8 @@ import Link from "next/link";
 import Image from "next/image";
 
 export const metadata = {
-  title: "Buat Laporan - Kejari Cimahi",
-  description: "Sampaikan laporan Anda kepada Kejaksaan Negeri Cimahi",
+  title: "Lapor ke SAHATE Kejari Cimahi",
+  description: "Sampaikan pengaduan dan kebutuhan layanan hukum Anda melalui SAHATE Kejari Cimahi",
 };
 
 export default function LaporPage() {
@@ -31,7 +31,7 @@ export default function LaporPage() {
               className="object-contain"
             />
           </div>
-          <span className="font-semibold text-sm" style={{ color: "#f0b429" }}>Kejari Cimahi</span>
+          <span className="font-semibold text-sm" style={{ color: "#f0b429" }}>SAHATE Kejari Cimahi</span>
         </Link>
         <Link href="/" className="text-xs hover:underline" style={{ color: "#a8d5b5" }}>
           ← Kembali
@@ -42,9 +42,9 @@ export default function LaporPage() {
       <div className="flex-1 flex items-start justify-center px-4 py-10">
         <div className="w-full max-w-lg">
           <div className="mb-6 text-center">
-            <h1 className="text-2xl font-bold mb-2" style={{ color: "#f5c518" }}>Formulir Laporan</h1>
+            <h1 className="text-2xl font-bold mb-2" style={{ color: "#f5c518" }}>Formulir Pengaduan SAHATE</h1>
             <p className="text-sm" style={{ color: "#a8d5b5" }}>
-              Isi data Anda langkah demi langkah. Informasi Anda aman dan terjaga kerahasiaannya.
+              Isi data Anda langkah demi langkah untuk mendapatkan layanan hukum yang mudah, cepat, dan terintegrasi.
             </p>
           </div>
 
@@ -60,7 +60,7 @@ export default function LaporPage() {
 
           <p className="text-center text-xs mt-5 leading-relaxed" style={{ color: "rgba(168,213,181,0.5)" }}>
             Dengan mengirim laporan, Anda menyatakan bahwa informasi yang disampaikan
-            adalah benar dan dapat dipertanggungjawabkan.
+            adalah benar dan dapat dipertanggungjawabkan dalam layanan SAHATE Kejari Cimahi.
           </p>
         </div>
       </div>

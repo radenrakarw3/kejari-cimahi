@@ -14,7 +14,7 @@ export async function categorizeReport(
 ): Promise<CategorizeResult> {
   const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-  const prompt = `Kamu adalah sistem kategorisasi laporan untuk Kejaksaan Negeri Cimahi, Indonesia.
+  const prompt = `Kamu adalah sistem kategorisasi laporan untuk SAHATE KEJARI CIMAHI (Sahabat Hukum Terpadu Kejaksaan Negeri Cimahi), Indonesia.
 
 Laporan dari masyarakat:
 "${isiLaporan}"
@@ -77,7 +77,7 @@ export async function generateWaReply(
     formal: "Formal resmi pemerintah, maksimal 800 karakter",
   };
 
-  const prompt = `Kamu adalah asisten administrasi Kejaksaan Negeri Cimahi.
+  const prompt = `Kamu adalah asisten administrasi SAHATE KEJARI CIMAHI.
 
 Laporan yang diterima:
 Kategori: ${kategori}
@@ -113,9 +113,9 @@ Balas HANYA dalam format JSON:
     return parsed.templates ?? [];
   } catch {
     return [
-      "Terima kasih atas laporan Anda. Kami akan segera memproses laporan [NOMOR]. Salam, Kejari Cimahi.",
-      "Halo [NAMA], laporan Anda dengan nomor [NOMOR] telah kami terima dan akan segera diproses. Terima kasih. Kejaksaan Negeri Cimahi.",
-      "Assalamualaikum Wr. Wb.\n\nKepada Yth. [NAMA],\n\nLaporan Anda nomor [NOMOR] telah kami terima dan akan diproses sesuai prosedur yang berlaku.\n\nTerima kasih.\nKejaksaan Negeri Cimahi",
+      "Terima kasih, laporan Anda di SAHATE Kejari Cimahi dengan nomor [NOMOR] segera kami proses.",
+      "Halo [NAMA], laporan Anda dengan nomor [NOMOR] telah kami terima melalui SAHATE Kejari Cimahi dan akan segera diproses. Terima kasih.",
+      "Assalamualaikum Wr. Wb.\n\nKepada Yth. [NAMA],\n\nLaporan Anda nomor [NOMOR] telah kami terima melalui SAHATE Kejari Cimahi dan akan diproses sesuai prosedur yang berlaku.\n\nTerima kasih.\nSAHATE Kejari Cimahi",
     ];
   }
 }
@@ -132,7 +132,7 @@ export async function generateWebhookReply(params: {
     ? `Pengirim sudah memiliki laporan aktif${nomorLaporan ? ` dengan nomor ${nomorLaporan}` : ""}.`
     : `Ini adalah pesan awal dari warga dan laporan baru${nomorLaporan ? ` sudah dibuat dengan nomor ${nomorLaporan}` : ""}.`;
 
-  const prompt = `Kamu adalah admin frontdesk WhatsApp Kejaksaan Negeri Cimahi yang membalas warga dengan cepat dan sopan.
+  const prompt = `Kamu adalah admin frontdesk WhatsApp SAHATE KEJARI CIMAHI yang membalas warga dengan cepat dan sopan.
 
 Konteks:
 - ${reportContext}
@@ -161,18 +161,19 @@ Balas hanya isi pesan final tanpa pembuka tambahan sistem.`;
     }
 
     return nomorLaporan
-      ? `Terima kasih, laporan Anda sudah kami terima dengan nomor ${nomorLaporan}. Tim Kejari Cimahi akan meninjau laporan Anda dan menghubungi Anda bila diperlukan informasi tambahan.`
-      : "Terima kasih, laporan Anda sudah kami terima. Tim Kejari Cimahi akan meninjau laporan Anda dan menghubungi Anda bila diperlukan informasi tambahan.";
+      ? `Terima kasih, laporan Anda sudah kami terima dengan nomor ${nomorLaporan}. Tim SAHATE Kejari Cimahi akan meninjau laporan Anda dan menghubungi Anda bila diperlukan informasi tambahan.`
+      : "Terima kasih, laporan Anda sudah kami terima. Tim SAHATE Kejari Cimahi akan meninjau laporan Anda dan menghubungi Anda bila diperlukan informasi tambahan.";
   }
 }
 
 export async function answerLegalQuestion(question: string): Promise<string> {
   const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-  const prompt = `Kamu adalah asisten informasi Kejaksaan Negeri Cimahi.
+  const prompt = `Kamu adalah asisten informasi SAHATE KEJARI CIMAHI.
 
-Pengetahuan yang kamu miliki tentang Kejari Cimahi:
+Pengetahuan yang kamu miliki tentang SAHATE Kejari Cimahi:
 - Berlokasi di Kota Cimahi, Jawa Barat
+- SAHATE berarti Sahabat Hukum Terpadu dan juga bermakna "sepenuh hati"
 - Jam operasional: Senin-Jumat 07:30-16:00 WIB
 - Bidang: Pembinaan, Intelijen, Pidana Umum, Pidana Khusus, Perdata & TUN
 - Menangani perkara korupsi, pidana umum, narkotika, perdata, dan TUN
@@ -182,13 +183,13 @@ Pengetahuan yang kamu miliki tentang Kejari Cimahi:
 Pertanyaan: "${question}"
 
 Jawab dengan singkat, jelas, dan dalam Bahasa Indonesia.
-Selalu akhiri dengan: "Untuk informasi resmi, silakan datang langsung ke kantor Kejaksaan Negeri Cimahi."
+Selalu akhiri dengan: "Untuk informasi resmi, silakan hubungi atau datang langsung ke SAHATE Kejari Cimahi."
 Maksimal 300 karakter.`;
 
   try {
     const result = await model.generateContent(prompt);
     return result.response.text().trim();
   } catch {
-    return "Untuk informasi lebih lanjut, silakan datang langsung ke kantor Kejaksaan Negeri Cimahi pada hari kerja Senin-Jumat, pukul 07:30-16:00 WIB.";
+    return "Untuk informasi lebih lanjut, silakan hubungi atau datang langsung ke SAHATE Kejari Cimahi pada hari kerja Senin-Jumat, pukul 07:30-16:00 WIB.";
   }
 }

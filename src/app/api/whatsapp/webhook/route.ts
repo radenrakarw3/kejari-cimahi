@@ -108,7 +108,9 @@ export async function POST(req: NextRequest) {
         isExistingReport: false,
       });
 
-      const confirmationMessage = `${buildConfirmationMessage("Anda", newReport.nomorLaporan)}\n\n${aiReply}`;
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+      const surveyUrl = `${appUrl}/survey/${newReport.id}`;
+      const confirmationMessage = `${buildConfirmationMessage("Anda", newReport.nomorLaporan, surveyUrl)}\n\n${aiReply}`;
       const sendResult = await sendWhatsApp(from, confirmationMessage);
 
       await db.insert(waLogs).values({
@@ -121,7 +123,6 @@ export async function POST(req: NextRequest) {
       });
 
       // AI categorization
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
       fetch(`${appUrl}/api/ai/categorize`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

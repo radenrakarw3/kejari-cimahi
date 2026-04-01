@@ -63,7 +63,7 @@ export default function LoginPage() {
             >
               <Image
                 src="/logo-kejari.svg"
-                alt="Logo Kejari"
+                alt="Logo SAHATE Kejari Cimahi"
                 width={64}
                 height={64}
                 className="object-contain"
@@ -71,11 +71,11 @@ export default function LoginPage() {
               />
             </div>
             <div className="text-xs font-semibold tracking-widest uppercase mb-1" style={{ color: "#f0b429" }}>
-              Kejaksaan Negeri
+              SAHATE
             </div>
-            <h1 className="text-xl font-bold tracking-wide leading-tight" style={{ color: "#f5c518" }}>KOTA CIMAHI</h1>
+            <h1 className="text-xl font-bold tracking-wide leading-tight" style={{ color: "#f5c518" }}>KEJARI CIMAHI</h1>
             <div className="mt-2 text-[11px] tracking-[0.2em] uppercase font-medium" style={{ color: "#a8d5b5" }}>
-              Satya Adhi Wicaksana
+              Mudah, Cepat, dan Terintegrasi
             </div>
           </div>
 
@@ -85,8 +85,8 @@ export default function LoginPage() {
           {/* Form */}
           <div className="px-7 py-8">
             <div className="text-center mb-6">
-              <h2 className="text-lg font-bold" style={{ color: "#f5c518" }}>Masuk Panel Admin</h2>
-              <p className="text-xs mt-1" style={{ color: "#a8d5b5" }}>Sistem Laporan Masyarakat Digital</p>
+              <h2 className="text-lg font-bold" style={{ color: "#f5c518" }}>Masuk Panel Admin SAHATE</h2>
+              <p className="text-xs mt-1" style={{ color: "#a8d5b5" }}>Sahabat Hukum Terpadu Kejaksaan Negeri Cimahi</p>
             </div>
 
             <form onSubmit={handleLogin} className="space-y-5">
@@ -150,7 +150,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center text-xs mt-6" style={{ color: "rgba(168,213,181,0.4)" }}>
-          © 2025 Kejaksaan Negeri Cimahi · Hak Akses Terbatas
+          © 2025 SAHATE Kejari Cimahi · Hak Akses Terbatas
         </p>
       </div>
     </main>

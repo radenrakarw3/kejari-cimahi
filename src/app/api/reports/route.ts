@@ -33,8 +33,10 @@ export async function POST(req: NextRequest) {
       })
       .returning();
 
-    // Fire and forget: AI categorization
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+    const surveyUrl = `${appUrl}/survey/${report.id}`;
+
+    // Fire and forget: AI categorization
     fetch(`${appUrl}/api/ai/categorize`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -44,7 +46,7 @@ export async function POST(req: NextRequest) {
     // Fire and forget: WA confirmation
     sendWhatsApp(
       report.nomorWa,
-      buildConfirmationMessage(report.nama, report.nomorLaporan)
+      buildConfirmationMessage(report.nama, report.nomorLaporan, surveyUrl)
     ).catch(() => {});
 
     // Broadcast SSE

@@ -97,10 +97,10 @@ export default function AiAssistantPage() {
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <Sparkles className="w-6 h-6 text-amber-400" />
-          AI Assistant
+          Asisten AI SAHATE
         </h1>
         <p className="text-slate-400 text-sm mt-1">
-          Tools berbasis AI Gemini untuk membantu pengelolaan laporan
+          Tools berbasis AI Gemini untuk membantu pengelolaan layanan SAHATE
         </p>
       </div>
 
