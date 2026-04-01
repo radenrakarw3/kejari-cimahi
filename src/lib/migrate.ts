@@ -156,6 +156,18 @@ async function main() {
   `;
 
   await sql`
+    CREATE TABLE IF NOT EXISTS "ai_knowledge_entries" (
+      "id" serial PRIMARY KEY NOT NULL,
+      "title" text NOT NULL,
+      "content" text NOT NULL,
+      "tags" text,
+      "is_active" boolean NOT NULL DEFAULT true,
+      "created_at" timestamp DEFAULT now(),
+      "updated_at" timestamp DEFAULT now()
+    )
+  `;
+
+  await sql`
     ALTER TABLE "wa_logs"
     ADD COLUMN IF NOT EXISTS "sent_by" text DEFAULT 'admin'
   `;

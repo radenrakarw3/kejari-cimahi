@@ -1,6 +1,75 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { db } from "./db";
+import { aiKnowledgeEntries } from "./schema";
+import { desc, eq } from "drizzle-orm";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+
+interface KnowledgeMatch {
+  id: number;
+  title: string;
+  content: string;
+  tags: string | null;
+  score: number;
+}
+
+function tokenize(text: string) {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/gi, " ")
+    .split(/\s+/)
+    .filter((word) => word.length >= 3);
+}
+
+async function findRelevantKnowledge(query: string, limit = 3): Promise<KnowledgeMatch[]> {
+  const entries = await db
+    .select()
+    .from(aiKnowledgeEntries)
+    .where(eq(aiKnowledgeEntries.isActive, true))
+    .orderBy(desc(aiKnowledgeEntries.updatedAt));
+
+  const queryTokens = tokenize(query);
+
+  const scored = entries
+    .map((entry) => {
+      const haystack = `${entry.title} ${entry.content} ${entry.tags ?? ""}`.toLowerCase();
+      let score = 0;
+
+      for (const token of queryTokens) {
+        if (haystack.includes(token)) {
+          score += 1;
+        }
+      }
+
+      if (entry.title.toLowerCase().includes(query.toLowerCase())) {
+        score += 3;
+      }
+
+      return { ...entry, score };
+    })
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
+
+  return scored;
+}
+
+function buildKnowledgeContext(entries: KnowledgeMatch[]) {
+  if (entries.length === 0) {
+    return `Tidak ada bank data admin yang relevan ditemukan untuk pertanyaan ini.
+Jika informasi tidak tersedia, arahkan warga dengan sopan untuk menunggu petugas/admin tanpa mengarang jawaban.`;
+  }
+
+  return entries
+    .map(
+      (entry, index) =>
+        `Referensi ${index + 1}
+Judul: ${entry.title}
+Tags: ${entry.tags ?? "-"}
+Isi: ${entry.content}`
+    )
+    .join("\n\n");
+}
 
 export interface CategorizeResult {
   kategori: string;
@@ -127,26 +196,31 @@ export async function generateWebhookReply(params: {
 }): Promise<string> {
   const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
   const { message, nomorLaporan, isExistingReport } = params;
+  const knowledgeEntries = await findRelevantKnowledge(message);
+  const knowledgeContext = buildKnowledgeContext(knowledgeEntries);
 
   const reportContext = isExistingReport
     ? `Pengirim sudah memiliki laporan aktif${nomorLaporan ? ` dengan nomor ${nomorLaporan}` : ""}.`
-    : `Ini adalah pesan awal dari warga dan laporan baru${nomorLaporan ? ` sudah dibuat dengan nomor ${nomorLaporan}` : ""}.`;
+    : `Ini adalah tahapan akhir intake warga dan laporan baru${nomorLaporan ? ` sudah dibuat dengan nomor ${nomorLaporan}` : ""}.`;
 
-  const prompt = `Kamu adalah admin frontdesk WhatsApp SAHATE KEJARI CIMAHI yang membalas warga dengan cepat dan sopan.
+  const prompt = `Kamu adalah admin frontdesk WhatsApp SAHATE KEJARI CIMAHI yang membalas warga seperti petugas admin yang hangat, sigap, dan menenangkan.
 
 Konteks:
 - ${reportContext}
 - Pesan warga: "${message}"
+- Bank data admin yang boleh dijadikan rujukan:
+${knowledgeContext}
 
 Aturan:
 - Jawab dalam Bahasa Indonesia.
-- Nada ramah, profesional, menenangkan, dan singkat.
+- Nada ramah, profesional, humanis, terasa seperti chat dengan admin sungguhan.
 - Jangan membuat janji hasil hukum atau keputusan resmi.
 - Jika ini laporan baru, konfirmasi bahwa laporan sudah diterima dan sebut nomor laporan jika tersedia.
 - Jika ini follow-up laporan aktif, akui pesan tambahan warga dan sampaikan bahwa informasi ditambahkan ke laporan berjalan.
-- Jika warga tampak bertanya informasi umum, jawab seperlunya lalu arahkan untuk menunggu petugas bila perlu.
+- Jika warga tampak bertanya informasi umum, utamakan isi bank data admin di atas.
+- Jangan mengarang informasi di luar bank data admin. Jika data tidak tersedia, katakan dengan jujur bahwa admin akan membantu menindaklanjuti.
 - Jangan gunakan markdown.
-- Maksimal 450 karakter.
+- Maksimal 500 karakter.
 
 Balas hanya isi pesan final tanpa pembuka tambahan sistem.`;
 
@@ -168,23 +242,22 @@ Balas hanya isi pesan final tanpa pembuka tambahan sistem.`;
 
 export async function answerLegalQuestion(question: string): Promise<string> {
   const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+  const knowledgeEntries = await findRelevantKnowledge(question, 4);
+  const knowledgeContext = buildKnowledgeContext(knowledgeEntries);
 
   const prompt = `Kamu adalah asisten informasi SAHATE KEJARI CIMAHI.
 
-Pengetahuan yang kamu miliki tentang SAHATE Kejari Cimahi:
-- Berlokasi di Kota Cimahi, Jawa Barat
-- SAHATE berarti Sahabat Hukum Terpadu dan juga bermakna "sepenuh hati"
-- Jam operasional: Senin-Jumat 07:30-16:00 WIB
-- Bidang: Pembinaan, Intelijen, Pidana Umum, Pidana Khusus, Perdata & TUN
-- Menangani perkara korupsi, pidana umum, narkotika, perdata, dan TUN
-- Laporan bisa via website atau WhatsApp
-- Konsultasi hukum bisa langsung ke kantor
+Bank data admin yang boleh dijadikan rujukan:
+${knowledgeContext}
 
 Pertanyaan: "${question}"
 
-Jawab dengan singkat, jelas, dan dalam Bahasa Indonesia.
-Selalu akhiri dengan: "Untuk informasi resmi, silakan hubungi atau datang langsung ke SAHATE Kejari Cimahi."
-Maksimal 300 karakter.`;
+Aturan:
+- Jawab dengan singkat, jelas, humanis, dan dalam Bahasa Indonesia.
+- Utamakan hanya informasi dari bank data admin.
+- Jika bank data tidak cukup, katakan dengan jujur bahwa admin akan membantu memberi informasi resmi lebih lanjut.
+- Jangan mengarang detail.
+- Maksimal 350 karakter.`;
 
   try {
     const result = await model.generateContent(prompt);

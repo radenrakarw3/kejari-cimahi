@@ -1,12 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { Brain, Sparkles, Copy, Send, RotateCcw } from "lucide-react";
+import {
+  Brain,
+  Sparkles,
+  Copy,
+  Send,
+  RotateCcw,
+  BookOpen,
+  Save,
+  Trash2,
+  Plus,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -33,23 +44,59 @@ const CONFIDENCE_COLORS: Record<string, string> = {
   low: "text-red-400 bg-red-500/10 border-red-500/20",
 };
 
+interface KnowledgeEntry {
+  id: number;
+  title: string;
+  content: string;
+  tags: string | null;
+  isActive: boolean;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+}
+
+const emptyKnowledgeForm = {
+  id: null as number | null,
+  title: "",
+  content: "",
+  tags: "",
+  isActive: true,
+};
+
 export default function AiAssistantPage() {
-  // ── Tab 1: Kategorisasi ──────────────────────────────
   const [laporanText, setLaporanText] = useState("");
   const [catResult, setCatResult] = useState<{
     kategori: string; confidence: number; alasan: string; bidangSaran: string;
   } | null>(null);
   const [catLoading, setCatLoading] = useState(false);
 
-  // ── Tab 2: Generate Reply ─────────────────────────────
   const [selKategori, setSelKategori] = useState("");
   const [konteks, setKonteks] = useState("");
   const [templates, setTemplates] = useState<string[]>([]);
   const [replyLoading, setReplyLoading] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<"kategorisasi" | "reply">("kategorisasi");
+  const [activeTab, setActiveTab] = useState<"kategorisasi" | "reply" | "knowledge">("kategorisasi");
+  const [knowledgeEntries, setKnowledgeEntries] = useState<KnowledgeEntry[]>([]);
+  const [knowledgeLoading, setKnowledgeLoading] = useState(true);
+  const [knowledgeSaving, setKnowledgeSaving] = useState(false);
+  const [knowledgeForm, setKnowledgeForm] = useState(emptyKnowledgeForm);
 
-  // Kategorisasi
+  const loadKnowledge = async () => {
+    setKnowledgeLoading(true);
+    try {
+      const res = await fetch("/api/ai/knowledge");
+      const data = await res.json();
+      setKnowledgeEntries(data.data ?? []);
+    } catch {
+      toast.error("Gagal memuat bank data AI");
+    } finally {
+      setKnowledgeLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadKnowledge();
+  }, []);
+
   const handleKategorisasi = async () => {
     if (!laporanText.trim()) return toast.error("Masukkan teks laporan");
     setCatLoading(true);
@@ -69,7 +116,6 @@ export default function AiAssistantPage() {
     }
   };
 
-  // Generate Reply
   const handleGenerateReply = async () => {
     if (!selKategori) return toast.error("Pilih kategori laporan");
     setReplyLoading(true);
@@ -89,26 +135,76 @@ export default function AiAssistantPage() {
     }
   };
 
+  const handleSaveKnowledge = async () => {
+    if (!knowledgeForm.title.trim() || !knowledgeForm.content.trim()) {
+      return toast.error("Judul dan isi bank data wajib diisi");
+    }
+
+    setKnowledgeSaving(true);
+    try {
+      const method = knowledgeForm.id ? "PATCH" : "POST";
+      const res = await fetch("/api/ai/knowledge", {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(knowledgeForm),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Gagal menyimpan data");
+      }
+
+      toast.success(knowledgeForm.id ? "Bank data diperbarui" : "Bank data ditambahkan");
+      setKnowledgeForm(emptyKnowledgeForm);
+      await loadKnowledge();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Gagal menyimpan bank data");
+    } finally {
+      setKnowledgeSaving(false);
+    }
+  };
+
+  const handleDeleteKnowledge = async (id: number) => {
+    try {
+      const res = await fetch(`/api/ai/knowledge?id=${id}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Gagal menghapus data");
+      }
+
+      toast.success("Bank data dihapus");
+      if (knowledgeForm.id === id) {
+        setKnowledgeForm(emptyKnowledgeForm);
+      }
+      await loadKnowledge();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Gagal menghapus bank data");
+    }
+  };
+
   const confidenceLevel = (c: number) =>
     c >= 0.8 ? "high" : c >= 0.5 ? "medium" : "low";
 
   return (
-    <div className="space-y-5 max-w-3xl">
+    <div className="space-y-5 max-w-5xl">
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <Sparkles className="w-6 h-6 text-amber-400" />
           Asisten AI SAHATE
         </h1>
         <p className="text-slate-400 text-sm mt-1">
-          Tools berbasis AI Gemini untuk membantu pengelolaan layanan SAHATE
+          Kelola AI yang membantu admin membalas warga dengan hangat, rapi, dan tetap patuh pada bank data resmi.
         </p>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 bg-white/5 border border-white/10 p-1 rounded-2xl w-fit">
+      <div className="flex gap-1 bg-white/5 border border-white/10 p-1 rounded-2xl w-fit flex-wrap">
         {[
           { key: "kategorisasi", label: "Kategorisasi Laporan", icon: Brain },
           { key: "reply", label: "Generate Balasan WA", icon: Send },
+          { key: "knowledge", label: "Bank Data AI", icon: BookOpen },
         ].map((tab) => (
           <button
             key={tab.key}
@@ -131,13 +227,12 @@ export default function AiAssistantPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.2 }}
       >
-        {/* ─── KATEGORISASI ──────────────────────────────── */}
         {activeTab === "kategorisasi" && (
           <div className="space-y-4">
             <div className="rounded-2xl bg-white/5 border border-white/10 p-5">
               <Label className="text-slate-300 mb-2 block">Teks Laporan</Label>
               <Textarea
-                placeholder="Tempel atau ketik isi laporan di sini untuk dikategorikan secara otomatis oleh AI..."
+                placeholder="Tempel atau ketik isi laporan di sini untuk dikategorikan otomatis..."
                 value={laporanText}
                 onChange={(e) => setLaporanText(e.target.value)}
                 className="bg-white/10 border-white/20 text-white placeholder:text-slate-500 rounded-xl min-h-[150px] resize-none"
@@ -148,17 +243,7 @@ export default function AiAssistantPage() {
                   disabled={catLoading}
                   className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold rounded-xl gap-2"
                 >
-                  {catLoading ? (
-                    <>
-                      <span className="w-4 h-4 border-2 border-slate-950/30 border-t-slate-950 rounded-full animate-spin" />
-                      Menganalisis...
-                    </>
-                  ) : (
-                    <>
-                      <Brain className="w-4 h-4" />
-                      Kategorisasi
-                    </>
-                  )}
+                  {catLoading ? "Menganalisis..." : "Kategorisasi"}
                 </Button>
                 {laporanText && (
                   <Button
@@ -173,7 +258,6 @@ export default function AiAssistantPage() {
               </div>
             </div>
 
-            {/* Result */}
             {catResult && (
               <motion.div
                 initial={{ opacity: 0, scale: 0.98 }}
@@ -223,7 +307,6 @@ export default function AiAssistantPage() {
           </div>
         )}
 
-        {/* ─── GENERATE REPLY ───────────────────────────── */}
         {activeTab === "reply" && (
           <div className="space-y-4">
             <div className="rounded-2xl bg-white/5 border border-white/10 p-5 space-y-4">
@@ -240,13 +323,7 @@ export default function AiAssistantPage() {
                         value={cat.kode}
                         className="text-white focus:bg-white/10"
                       >
-                        <div className="flex items-center gap-2">
-                          <div
-                            className="w-2 h-2 rounded-full"
-                            style={{ backgroundColor: cat.warna }}
-                          />
-                          {cat.nama}
-                        </div>
+                        {cat.nama}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -255,14 +332,13 @@ export default function AiAssistantPage() {
 
               <div>
                 <Label className="text-slate-300 mb-2 block">
-                  Konteks Laporan{" "}
-                  <span className="text-slate-500 font-normal">(opsional)</span>
+                  Konteks Laporan <span className="text-slate-500 font-normal">(opsional)</span>
                 </Label>
                 <Textarea
-                  placeholder="Ringkasan singkat laporan untuk konteks yang lebih akurat..."
+                  placeholder="Tambahkan konteks agar AI menyusun template balasan lebih relevan..."
                   value={konteks}
                   onChange={(e) => setKonteks(e.target.value)}
-                  className="bg-white/10 border-white/20 text-white placeholder:text-slate-500 rounded-xl min-h-[80px] resize-none"
+                  className="bg-white/10 border-white/20 text-white placeholder:text-slate-500 rounded-xl min-h-[140px] resize-none"
                 />
               </div>
 
@@ -271,57 +347,204 @@ export default function AiAssistantPage() {
                 disabled={replyLoading}
                 className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold rounded-xl gap-2"
               >
-                {replyLoading ? (
-                  <>
-                    <span className="w-4 h-4 border-2 border-slate-950/30 border-t-slate-950 rounded-full animate-spin" />
-                    Membuat template...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4" />
-                    Generate Template Balasan
-                  </>
-                )}
+                {replyLoading ? "Membuat template..." : "Generate Balasan WA"}
               </Button>
             </div>
 
-            {/* Templates */}
             {templates.length > 0 && (
               <div className="space-y-3">
                 {templates.map((tpl, i) => (
-                  <motion.div
+                  <div
                     key={i}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.1 }}
-                    className="rounded-2xl bg-white/5 border border-white/10 p-5"
+                    className="rounded-2xl bg-white/5 border border-white/10 p-4 space-y-3"
                   >
-                    <div className="flex items-center justify-between mb-3">
-                      <Badge className="bg-amber-500/10 text-amber-400 border-amber-500/20 text-xs">
-                        {["Singkat", "Menengah", "Formal"][i] ?? `Template ${i + 1}`}
+                    <div className="flex items-center justify-between gap-3">
+                      <Badge className="bg-amber-500/10 text-amber-300 border-amber-500/20">
+                        Template {i + 1}
                       </Badge>
                       <Button
+                        variant="ghost"
                         size="sm"
+                        className="text-slate-300"
                         onClick={() => {
                           navigator.clipboard.writeText(tpl);
-                          toast.success("Template disalin!");
+                          toast.success("Template disalin");
                         }}
-                        className="h-7 text-xs bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 rounded-lg gap-1"
                       >
-                        <Copy className="w-3 h-3" />
-                        Salin
+                        <Copy className="w-4 h-4" />
                       </Button>
                     </div>
-                    <p className="text-sm text-slate-200 leading-relaxed whitespace-pre-wrap bg-white/5 rounded-xl p-4">
+                    <p className="text-sm leading-relaxed text-slate-200 whitespace-pre-wrap">
                       {tpl}
                     </p>
-                    <p className="text-xs text-slate-500 mt-2">
-                      * Ganti [NAMA] dan [NOMOR] dengan data pelapor
-                    </p>
-                  </motion.div>
+                  </div>
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {activeTab === "knowledge" && (
+          <div className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
+            <div className="rounded-2xl bg-white/5 border border-white/10 p-5 space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="font-semibold text-lg text-white">Bank Data AI</h2>
+                  <p className="text-sm text-slate-400">
+                    Isi pengetahuan resmi yang boleh dijadikan dasar jawaban AI di WhatsApp dan asisten hukum.
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-slate-300"
+                  onClick={() => setKnowledgeForm(emptyKnowledgeForm)}
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  Baru
+                </Button>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <Label className="text-slate-300 mb-2 block">Judul</Label>
+                  <Input
+                    value={knowledgeForm.title}
+                    onChange={(e) => setKnowledgeForm((prev) => ({ ...prev, title: e.target.value }))}
+                    placeholder="Contoh: Jam layanan konsultasi hukum"
+                    className="bg-white/10 border-white/20 text-white placeholder:text-slate-500 rounded-xl"
+                  />
+                </div>
+
+                <div>
+                  <Label className="text-slate-300 mb-2 block">Tags</Label>
+                  <Input
+                    value={knowledgeForm.tags}
+                    onChange={(e) => setKnowledgeForm((prev) => ({ ...prev, tags: e.target.value }))}
+                    placeholder="Contoh: jam layanan, konsultasi, kantor"
+                    className="bg-white/10 border-white/20 text-white placeholder:text-slate-500 rounded-xl"
+                  />
+                </div>
+
+                <div>
+                  <Label className="text-slate-300 mb-2 block">Isi Bank Data</Label>
+                  <Textarea
+                    value={knowledgeForm.content}
+                    onChange={(e) => setKnowledgeForm((prev) => ({ ...prev, content: e.target.value }))}
+                    placeholder="Tulis informasi resmi yang boleh dipakai AI. Semakin jelas dan spesifik, semakin bagus."
+                    className="bg-white/10 border-white/20 text-white placeholder:text-slate-500 rounded-xl min-h-[180px] resize-none"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/5 p-3">
+                  <div>
+                    <div className="text-sm font-medium text-white">Status Bank Data</div>
+                    <div className="text-xs text-slate-400">Hanya data aktif yang boleh dipakai AI.</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setKnowledgeForm((prev) => ({ ...prev, isActive: !prev.isActive }))}
+                    className={`px-3 py-1.5 rounded-full text-xs font-semibold transition ${
+                      knowledgeForm.isActive
+                        ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/25"
+                        : "bg-slate-500/15 text-slate-300 border border-slate-500/25"
+                    }`}
+                  >
+                    {knowledgeForm.isActive ? "Aktif" : "Nonaktif"}
+                  </button>
+                </div>
+
+                <div className="flex gap-3">
+                  <Button
+                    onClick={handleSaveKnowledge}
+                    disabled={knowledgeSaving}
+                    className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold rounded-xl gap-2"
+                  >
+                    <Save className="w-4 h-4" />
+                    {knowledgeSaving ? "Menyimpan..." : knowledgeForm.id ? "Perbarui" : "Simpan"}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="text-slate-300 rounded-xl"
+                    onClick={() => setKnowledgeForm(emptyKnowledgeForm)}
+                  >
+                    Reset
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-white/5 border border-white/10 p-5">
+              <div className="mb-4">
+                <h2 className="font-semibold text-lg text-white">Daftar Referensi</h2>
+                <p className="text-sm text-slate-400">
+                  Data di sini menjadi rujukan utama AI saat menjawab warga.
+                </p>
+              </div>
+
+              <div className="space-y-3 max-h-[640px] overflow-auto pr-1">
+                {knowledgeLoading ? (
+                  <div className="text-sm text-slate-400">Memuat bank data...</div>
+                ) : knowledgeEntries.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-slate-400">
+                    Belum ada bank data. Tambahkan informasi resmi agar AI tidak menjawab ngawur.
+                  </div>
+                ) : (
+                  knowledgeEntries.map((entry) => (
+                    <div
+                      key={entry.id}
+                      className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-3"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="font-medium text-white">{entry.title}</div>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Badge className={entry.isActive
+                              ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/20"
+                              : "bg-slate-500/10 text-slate-300 border-slate-500/20"}
+                            >
+                              {entry.isActive ? "Aktif" : "Nonaktif"}
+                            </Badge>
+                            {entry.tags ? (
+                              <span className="text-xs text-slate-500">{entry.tags}</span>
+                            ) : null}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-slate-300"
+                            onClick={() =>
+                              setKnowledgeForm({
+                                id: entry.id,
+                                title: entry.title,
+                                content: entry.content,
+                                tags: entry.tags ?? "",
+                                isActive: entry.isActive,
+                              })
+                            }
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-300"
+                            onClick={() => handleDeleteKnowledge(entry.id)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      <p className="text-sm leading-relaxed text-slate-300 whitespace-pre-wrap">
+                        {entry.content}
+                      </p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
           </div>
         )}
       </motion.div>

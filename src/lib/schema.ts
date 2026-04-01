@@ -146,6 +146,16 @@ export const waSessions = pgTable("wa_sessions", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const aiKnowledgeEntries = pgTable("ai_knowledge_entries", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  tags: text("tags"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // ─── Zod Schemas ───────────────────────────────────────────────────────────────
 export const insertReportSchema = createInsertSchema(reports, {
   nama: z.string().min(3, "Nama minimal 3 karakter"),
@@ -206,6 +216,7 @@ export type Report = typeof reports.$inferSelect;
 export type Disposisi = typeof disposisi.$inferSelect;
 export type WaLog = typeof waLogs.$inferSelect;
 export type WaSession = typeof waSessions.$inferSelect;
+export type AiKnowledgeEntry = typeof aiKnowledgeEntries.$inferSelect;
 export type User = typeof user.$inferSelect;
 
 export type InsertReport = z.infer<typeof insertReportSchema>;
