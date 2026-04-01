@@ -3,6 +3,8 @@ import { db } from "@/lib/db";
 import { skm } from "@/lib/schema";
 import { z } from "zod";
 
+export const dynamic = 'force-dynamic';
+
 const skmSchema = z.object({
   reportId: z.number().int().positive(),
   u1: z.number().int().min(1).max(4),
