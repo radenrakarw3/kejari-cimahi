@@ -133,6 +133,19 @@ export const waLogs = pgTable("wa_logs", {
   timestamp: timestamp("timestamp").defaultNow(),
 });
 
+export const waSessions = pgTable("wa_sessions", {
+  id: serial("id").primaryKey(),
+  phoneNumber: text("phone_number").notNull().unique(),
+  currentStep: text("current_step").notNull().default("ask_name"),
+  nama: text("nama"),
+  kelurahan: text("kelurahan"),
+  rw: text("rw"),
+  isiLaporan: text("isi_laporan"),
+  status: text("status").notNull().default("collecting"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // ─── Zod Schemas ───────────────────────────────────────────────────────────────
 export const insertReportSchema = createInsertSchema(reports, {
   nama: z.string().min(3, "Nama minimal 3 karakter"),
@@ -192,6 +205,7 @@ export type Bidang = typeof bidang.$inferSelect;
 export type Report = typeof reports.$inferSelect;
 export type Disposisi = typeof disposisi.$inferSelect;
 export type WaLog = typeof waLogs.$inferSelect;
+export type WaSession = typeof waSessions.$inferSelect;
 export type User = typeof user.$inferSelect;
 
 export type InsertReport = z.infer<typeof insertReportSchema>;

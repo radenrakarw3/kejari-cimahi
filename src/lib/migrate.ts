@@ -135,8 +135,29 @@ async function main() {
       "content" text NOT NULL,
       "phone_number" text NOT NULL,
       "status" text NOT NULL DEFAULT 'sent',
+      "sent_by" text DEFAULT 'admin',
       "timestamp" timestamp DEFAULT now()
     )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS "wa_sessions" (
+      "id" serial PRIMARY KEY NOT NULL,
+      "phone_number" text NOT NULL UNIQUE,
+      "current_step" text NOT NULL DEFAULT 'ask_name',
+      "nama" text,
+      "kelurahan" text,
+      "rw" text,
+      "isi_laporan" text,
+      "status" text NOT NULL DEFAULT 'collecting',
+      "created_at" timestamp DEFAULT now(),
+      "updated_at" timestamp DEFAULT now()
+    )
+  `;
+
+  await sql`
+    ALTER TABLE "wa_logs"
+    ADD COLUMN IF NOT EXISTS "sent_by" text DEFAULT 'admin'
   `;
 
   await sql`

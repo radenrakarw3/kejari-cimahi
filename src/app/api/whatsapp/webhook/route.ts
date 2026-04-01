@@ -1,11 +1,81 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { reports, waLogs } from "@/lib/schema";
+import { reports, waLogs, waSessions } from "@/lib/schema";
 import { normalizePhone, sendWhatsApp, buildConfirmationMessage } from "@/lib/whatsapp";
 import { broadcastSseEvent } from "@/lib/sse";
 import { generateNomorLaporan } from "@/lib/nomor-laporan";
 import { generateWebhookReply } from "@/lib/ai";
+import { KELURAHAN_CIMAHI, RW_OPTIONS } from "@/lib/kelurahan";
 import { eq, and, inArray } from "drizzle-orm";
+
+const CANCEL_KEYWORDS = ["batal", "cancel", "ulang", "reset", "mulai lagi"];
+
+function isCancelMessage(message: string) {
+  const normalized = message.trim().toLowerCase();
+  return CANCEL_KEYWORDS.includes(normalized);
+}
+
+function normalizeKelurahanInput(value: string) {
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+
+  return (
+    KELURAHAN_CIMAHI.find((kelurahan) => kelurahan.toLowerCase() === normalized) ?? null
+  );
+}
+
+function normalizeRwInput(value: string) {
+  const digits = value.replace(/\D/g, "");
+  if (!digits) {
+    return null;
+  }
+
+  const normalized = String(Number(digits)).padStart(2, "0");
+  return RW_OPTIONS.includes(normalized) ? normalized : null;
+}
+
+function buildGreetingMessage() {
+  return `Assalamualaikum Wr. Wb.
+
+Halo, selamat datang di layanan WhatsApp SAHATE Kejari Cimahi.
+
+Saya akan membantu mencatat pengaduan Anda dengan sepenuh hati. Agar laporan dibuat dengan tepat, saya akan menanyakan data secara bertahap seperti formulir resmi.
+
+Boleh diinformasikan nama lengkap Anda terlebih dahulu?`;
+}
+
+function buildKelurahanQuestion(nama: string) {
+  return `Baik, ${nama}. Terima kasih.
+
+Selanjutnya, mohon tuliskan kelurahan domisili atau lokasi kejadian Anda.
+
+Pilihan kelurahan yang dapat digunakan:
+${KELURAHAN_CIMAHI.join(", ")}
+
+Jika ingin mengulang dari awal, balas: batal`;
+}
+
+function buildRwQuestion(kelurahan: string) {
+  return `Baik, kelurahan ${kelurahan} sudah dicatat.
+
+Sekarang mohon informasikan nomor RW lokasi Anda, misalnya 01 atau 12.`;
+}
+
+function buildIssueQuestion(nama: string, kelurahan: string, rw: string) {
+  return `Terima kasih, ${nama}. Data sementara Anda sudah kami catat:
+Kelurahan: ${kelurahan}
+RW: ${rw}
+
+Silakan ceritakan pengaduan atau kebutuhan hukum Anda dengan singkat namun jelas. Jika memungkinkan, sertakan waktu kejadian, lokasi, dan pihak yang terlibat.`;
+}
+
+function buildResetMessage() {
+  return `Baik, proses pengaduan WhatsApp telah kami reset.
+
+Mari kita mulai lagi dengan tenang. Silakan kirim nama lengkap Anda.`;
+}
 
 function getWebhookSecret(req: NextRequest, body?: unknown) {
   if (req.headers.get("x-webhook-secret")) {
@@ -99,6 +169,250 @@ export async function POST(req: NextRequest) {
     }
 
     const phoneNormalized = normalizePhone(from);
+    const cleanedMessage = messageText.trim();
+
+    const activeSessions = await db
+      .select()
+      .from(waSessions)
+      .where(
+        and(
+          eq(waSessions.phoneNumber, phoneNormalized),
+          eq(waSessions.status, "collecting")
+        )
+      )
+      .limit(1);
+
+    const activeSession = activeSessions[0];
+
+    if (isCancelMessage(cleanedMessage)) {
+      if (activeSession) {
+        await db
+          .update(waSessions)
+          .set({
+            status: "cancelled",
+            updatedAt: new Date(),
+          })
+          .where(eq(waSessions.id, activeSession.id));
+      }
+
+      const resetMessage = buildResetMessage();
+      await sendWhatsApp(from, resetMessage);
+
+      await db.insert(waSessions).values({
+        phoneNumber: phoneNormalized,
+        currentStep: "ask_name",
+        status: "collecting",
+      }).onConflictDoUpdate({
+        target: waSessions.phoneNumber,
+        set: {
+          currentStep: "ask_name",
+          nama: null,
+          kelurahan: null,
+          rw: null,
+          isiLaporan: null,
+          status: "collecting",
+          updatedAt: new Date(),
+        },
+      });
+
+      return NextResponse.json({ ok: true, mode: "reset" });
+    }
+
+    if (activeSession) {
+      await db.insert(waLogs).values({
+        direction: "inbound",
+        content: cleanedMessage,
+        phoneNumber: phoneNormalized,
+        status: "received",
+        sentBy: "system",
+      });
+
+      if (activeSession.currentStep === "ask_name") {
+        const nama = cleanedMessage.slice(0, 120);
+        const reply = buildKelurahanQuestion(nama);
+
+        await db
+          .update(waSessions)
+          .set({
+            nama,
+            currentStep: "ask_kelurahan",
+            updatedAt: new Date(),
+          })
+          .where(eq(waSessions.id, activeSession.id));
+
+        const sendResult = await sendWhatsApp(from, reply);
+        await db.insert(waLogs).values({
+          direction: "outbound",
+          content: reply,
+          phoneNumber: phoneNormalized,
+          status: sendResult.success ? "sent" : "failed",
+          sentBy: "system",
+        });
+
+        return NextResponse.json({ ok: true, mode: "intake" });
+      }
+
+      if (activeSession.currentStep === "ask_kelurahan") {
+        const kelurahan = normalizeKelurahanInput(cleanedMessage);
+
+        if (!kelurahan) {
+          const reply = `Kelurahan belum terbaca dengan jelas.
+
+Mohon balas dengan salah satu nama kelurahan berikut:
+${KELURAHAN_CIMAHI.join(", ")}`;
+
+          const sendResult = await sendWhatsApp(from, reply);
+          await db.insert(waLogs).values({
+            direction: "outbound",
+            content: reply,
+            phoneNumber: phoneNormalized,
+            status: sendResult.success ? "sent" : "failed",
+            sentBy: "system",
+          });
+
+          return NextResponse.json({ ok: true, mode: "intake" });
+        }
+
+        const reply = buildRwQuestion(kelurahan);
+
+        await db
+          .update(waSessions)
+          .set({
+            kelurahan,
+            currentStep: "ask_rw",
+            updatedAt: new Date(),
+          })
+          .where(eq(waSessions.id, activeSession.id));
+
+        const sendResult = await sendWhatsApp(from, reply);
+        await db.insert(waLogs).values({
+          direction: "outbound",
+          content: reply,
+          phoneNumber: phoneNormalized,
+          status: sendResult.success ? "sent" : "failed",
+          sentBy: "system",
+        });
+
+        return NextResponse.json({ ok: true, mode: "intake" });
+      }
+
+      if (activeSession.currentStep === "ask_rw") {
+        const rw = normalizeRwInput(cleanedMessage);
+
+        if (!rw) {
+          const reply = "Nomor RW belum sesuai. Mohon balas dengan angka RW yang valid, misalnya 01, 02, atau 12.";
+          const sendResult = await sendWhatsApp(from, reply);
+          await db.insert(waLogs).values({
+            direction: "outbound",
+            content: reply,
+            phoneNumber: phoneNormalized,
+            status: sendResult.success ? "sent" : "failed",
+            sentBy: "system",
+          });
+
+          return NextResponse.json({ ok: true, mode: "intake" });
+        }
+
+        const reply = buildIssueQuestion(
+          activeSession.nama ?? "Bapak/Ibu",
+          activeSession.kelurahan ?? "-",
+          rw
+        );
+
+        await db
+          .update(waSessions)
+          .set({
+            rw,
+            currentStep: "ask_isi_laporan",
+            updatedAt: new Date(),
+          })
+          .where(eq(waSessions.id, activeSession.id));
+
+        const sendResult = await sendWhatsApp(from, reply);
+        await db.insert(waLogs).values({
+          direction: "outbound",
+          content: reply,
+          phoneNumber: phoneNormalized,
+          status: sendResult.success ? "sent" : "failed",
+          sentBy: "system",
+        });
+
+        return NextResponse.json({ ok: true, mode: "intake" });
+      }
+
+      if (activeSession.currentStep === "ask_isi_laporan") {
+        const nomorLaporan = await generateNomorLaporan();
+        const [newReport] = await db
+          .insert(reports)
+          .values({
+            nomorLaporan,
+            nama: activeSession.nama ?? "Pelapor via WhatsApp",
+            nomorWa: phoneNormalized,
+            kelurahan: activeSession.kelurahan ?? "Belum Diisi",
+            rw: activeSession.rw ?? "00",
+            isiLaporan: cleanedMessage,
+            source: "wa",
+            waMessageId: messageId,
+            status: "masuk",
+          })
+          .returning();
+
+        await db.insert(waLogs).values({
+          reportId: newReport.id,
+          direction: "inbound",
+          content: cleanedMessage,
+          phoneNumber: phoneNormalized,
+          status: "received",
+          sentBy: "system",
+        });
+
+        const aiReply = await generateWebhookReply({
+          message: cleanedMessage,
+          nomorLaporan: newReport.nomorLaporan,
+          isExistingReport: false,
+        });
+
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+        const surveyUrl = `${appUrl}/survey/${newReport.id}`;
+        const confirmationMessage = `${buildConfirmationMessage(
+          activeSession.nama ?? "Anda",
+          newReport.nomorLaporan,
+          surveyUrl
+        )}\n\n${aiReply}`;
+        const sendResult = await sendWhatsApp(from, confirmationMessage);
+
+        await db.insert(waLogs).values({
+          reportId: newReport.id,
+          direction: "outbound",
+          content: confirmationMessage,
+          phoneNumber: phoneNormalized,
+          status: sendResult.success ? "sent" : "failed",
+          sentBy: "ai",
+        });
+
+        await db
+          .update(waSessions)
+          .set({
+            isiLaporan: cleanedMessage,
+            status: "completed",
+            updatedAt: new Date(),
+          })
+          .where(eq(waSessions.id, activeSession.id));
+
+        fetch(`${appUrl}/api/ai/categorize`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            reportId: newReport.id,
+            isiLaporan: newReport.isiLaporan,
+          }),
+        }).catch(() => {});
+
+        broadcastSseEvent({ type: "new_report", report: newReport });
+
+        return NextResponse.json({ ok: true, mode: "created" });
+      }
+    }
 
     // Check if this phone has an existing open report
     const existingReports = await db
@@ -119,13 +433,14 @@ export async function POST(req: NextRequest) {
       await db.insert(waLogs).values({
         reportId: existingReport.id,
         direction: "inbound",
-        content: messageText,
+        content: cleanedMessage,
         phoneNumber: phoneNormalized,
         status: "received",
+        sentBy: "system",
       });
 
       const aiReply = await generateWebhookReply({
-        message: messageText,
+        message: cleanedMessage,
         nomorLaporan: existingReport.nomorLaporan,
         isExistingReport: true,
       });
@@ -144,66 +459,44 @@ export async function POST(req: NextRequest) {
       broadcastSseEvent({
         type: "new_wa_message",
         reportId: existingReport.id,
-        message: messageText,
+        message: cleanedMessage,
       });
     } else {
-      // Create new report from WA
-      const nomorLaporan = await generateNomorLaporan();
-      const [newReport] = await db
-        .insert(reports)
-        .values({
-          nomorLaporan,
-          nama: "Pelapor via WhatsApp",
-          nomorWa: phoneNormalized,
-          kelurahan: "Belum Diisi",
-          rw: "Belum Diisi",
-          isiLaporan: messageText,
-          source: "wa",
-          waMessageId: messageId,
-          status: "masuk",
-        })
-        .returning();
-
       await db.insert(waLogs).values({
-        reportId: newReport.id,
         direction: "inbound",
-        content: messageText,
+        content: cleanedMessage,
         phoneNumber: phoneNormalized,
         status: "received",
+        sentBy: "system",
       });
 
-      // Auto-reply with AI confirmation
-      const aiReply = await generateWebhookReply({
-        message: messageText,
-        nomorLaporan: newReport.nomorLaporan,
-        isExistingReport: false,
+      await db.insert(waSessions).values({
+        phoneNumber: phoneNormalized,
+        currentStep: "ask_name",
+        status: "collecting",
+      }).onConflictDoUpdate({
+        target: waSessions.phoneNumber,
+        set: {
+          currentStep: "ask_name",
+          nama: null,
+          kelurahan: null,
+          rw: null,
+          isiLaporan: null,
+          status: "collecting",
+          updatedAt: new Date(),
+        },
       });
 
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-      const surveyUrl = `${appUrl}/survey/${newReport.id}`;
-      const confirmationMessage = `${buildConfirmationMessage("Anda", newReport.nomorLaporan, surveyUrl)}\n\n${aiReply}`;
-      const sendResult = await sendWhatsApp(from, confirmationMessage);
+      const greetingMessage = buildGreetingMessage();
+      const sendResult = await sendWhatsApp(from, greetingMessage);
 
       await db.insert(waLogs).values({
-        reportId: newReport.id,
         direction: "outbound",
-        content: confirmationMessage,
+        content: greetingMessage,
         phoneNumber: phoneNormalized,
         status: sendResult.success ? "sent" : "failed",
-        sentBy: "ai",
+        sentBy: "system",
       });
-
-      // AI categorization
-      fetch(`${appUrl}/api/ai/categorize`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          reportId: newReport.id,
-          isiLaporan: newReport.isiLaporan,
-        }),
-      }).catch(() => {});
-
-      broadcastSseEvent({ type: "new_report", report: newReport });
     }
 
     return NextResponse.json({ ok: true });
