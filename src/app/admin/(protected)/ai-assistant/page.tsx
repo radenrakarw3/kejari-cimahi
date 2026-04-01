@@ -17,6 +17,35 @@ interface KnowledgeEntry {
   isActive: boolean;
 }
 
+type ToneMode = "formal" | "warm" | "calming" | "balanced";
+
+const toneModeOptions: Array<{
+  value: ToneMode;
+  title: string;
+  description: string;
+}> = [
+  {
+    value: "balanced",
+    title: "Seimbang",
+    description: "Sopan, natural, dan tetap hangat untuk mayoritas percakapan warga.",
+  },
+  {
+    value: "formal",
+    title: "Formal",
+    description: "Lebih resmi dan rapi, cocok untuk jawaban yang ingin terasa institusional.",
+  },
+  {
+    value: "warm",
+    title: "Hangat",
+    description: "Lebih akrab, lembut, dan terasa seperti admin yang responsif.",
+  },
+  {
+    value: "calming",
+    title: "Menenangkan",
+    description: "Lebih empatik dan menenangkan untuk warga yang sedang gelisah atau tertekan.",
+  },
+];
+
 const emptyKnowledgeForm = {
   id: null as number | null,
   title: "",
@@ -30,6 +59,8 @@ export default function AiAssistantPage() {
   const [knowledgeLoading, setKnowledgeLoading] = useState(true);
   const [knowledgeSaving, setKnowledgeSaving] = useState(false);
   const [knowledgeForm, setKnowledgeForm] = useState(emptyKnowledgeForm);
+  const [toneMode, setToneMode] = useState<ToneMode>("balanced");
+  const [toneSaving, setToneSaving] = useState(false);
 
   const loadKnowledge = async () => {
     setKnowledgeLoading(true);
@@ -46,7 +77,47 @@ export default function AiAssistantPage() {
 
   useEffect(() => {
     loadKnowledge();
+    void loadSettings();
   }, []);
+
+  const loadSettings = async () => {
+    try {
+      const res = await fetch("/api/ai/settings");
+      if (!res.ok) {
+        throw new Error(`settings-${res.status}`);
+      }
+
+      const data = await res.json();
+      if (data.data?.toneMode) {
+        setToneMode(data.data.toneMode);
+      }
+    } catch (error) {
+      console.warn("Gagal memuat pengaturan tone AI, memakai default balanced.", error);
+      setToneMode("balanced");
+    }
+  };
+
+  const handleSaveTone = async () => {
+    setToneSaving(true);
+    try {
+      const res = await fetch("/api/ai/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ toneMode }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Gagal menyimpan pengaturan tone");
+      }
+
+      toast.success("Tone balasan AI diperbarui");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Gagal menyimpan pengaturan tone");
+    } finally {
+      setToneSaving(false);
+    }
+  };
 
   const handleSaveKnowledge = async () => {
     if (!knowledgeForm.title.trim() || !knowledgeForm.content.trim()) {
@@ -103,6 +174,50 @@ export default function AiAssistantPage() {
         <p className="text-sm mt-1" style={{ color: "#a8d5b5" }}>
           Kelola referensi resmi yang boleh dipakai asisten WhatsApp untuk menjawab warga.
         </p>
+      </div>
+
+      <div className="rounded-2xl p-5 space-y-4" style={{ backgroundColor: "#0d4d22", border: "1px solid rgba(240,180,41,0.18)" }}>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="font-semibold text-lg" style={{ color: "#f5c518" }}>Tone Balasan AI</h2>
+            <p className="text-sm" style={{ color: "#a8d5b5" }}>
+              Pilih karakter bahasa default agar jawaban WhatsApp terasa sesuai dengan pendekatan layanan yang diinginkan.
+            </p>
+          </div>
+          <Button onClick={handleSaveTone} disabled={toneSaving} className="rounded-xl font-semibold" style={{ backgroundColor: "#f0b429", color: "#071f0d" }}>
+            <Save className="w-4 h-4 mr-1.5" />
+            {toneSaving ? "Menyimpan..." : "Simpan Tone"}
+          </Button>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {toneModeOptions.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => setToneMode(option.value)}
+              className="rounded-2xl p-4 text-left transition"
+              style={
+                toneMode === option.value
+                  ? {
+                      backgroundColor: "rgba(240,180,41,0.12)",
+                      border: "1px solid rgba(240,180,41,0.28)",
+                      color: "#f5c518",
+                    }
+                  : {
+                      backgroundColor: "rgba(255,255,255,0.04)",
+                      border: "1px solid rgba(240,180,41,0.12)",
+                      color: "#c8e6d0",
+                    }
+              }
+            >
+              <div className="font-semibold">{option.title}</div>
+              <div className="text-sm mt-2" style={{ color: toneMode === option.value ? "#fde68a" : "#a8d5b5" }}>
+                {option.description}
+              </div>
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">

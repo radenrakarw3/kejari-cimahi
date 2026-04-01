@@ -175,6 +175,13 @@ export const aiKnowledgeEntries = pgTable("ai_knowledge_entries", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const aiAssistantSettings = pgTable("ai_assistant_settings", {
+  id: serial("id").primaryKey(),
+  toneMode: text("tone_mode").notNull().default("balanced"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // ─── Zod Schemas ───────────────────────────────────────────────────────────────
 export const insertReportSchema = createInsertSchema(reports, {
   nama: z.string().min(3, "Nama minimal 3 karakter"),
