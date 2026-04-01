@@ -7,21 +7,92 @@ import { generateNomorLaporan } from "@/lib/nomor-laporan";
 import { generateWebhookReply } from "@/lib/ai";
 import { eq, and, inArray } from "drizzle-orm";
 
+function getWebhookSecret(req: NextRequest, body?: unknown) {
+  if (req.headers.get("x-webhook-secret")) {
+    return req.headers.get("x-webhook-secret");
+  }
+
+  const querySecret = req.nextUrl.searchParams.get("secret");
+  if (querySecret) {
+    return querySecret;
+  }
+
+  if (body && typeof body === "object" && "secret" in body) {
+    const bodySecret = (body as { secret?: unknown }).secret;
+    return typeof bodySecret === "string" ? bodySecret : null;
+  }
+
+  return null;
+}
+
+function getPayloadValue(body: unknown, keys: string[]) {
+  if (!body || typeof body !== "object") {
+    return "";
+  }
+
+  const payload = body as Record<string, unknown>;
+  const data =
+    payload.data && typeof payload.data === "object"
+      ? (payload.data as Record<string, unknown>)
+      : null;
+
+  for (const key of keys) {
+    const directValue = payload[key];
+    if (typeof directValue === "string" && directValue.trim()) {
+      return directValue;
+    }
+
+    const nestedValue = data?.[key];
+    if (typeof nestedValue === "string" && nestedValue.trim()) {
+      return nestedValue;
+    }
+  }
+
+  return "";
+}
+
+export async function GET(req: NextRequest) {
+  const providedSecret = getWebhookSecret(req);
+  const configuredSecret = process.env.WEBHOOK_SECRET;
+
+  if (configuredSecret && providedSecret !== configuredSecret) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
+
+  return NextResponse.json({
+    ok: true,
+    service: "whatsapp-webhook",
+    timestamp: new Date().toISOString(),
+  });
+}
+
 export async function POST(req: NextRequest) {
-  // Verify webhook secret
-  const secret = req.headers.get("x-webhook-secret");
-  if (secret !== process.env.WEBHOOK_SECRET) {
+  let body: unknown;
+
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON payload" }, { status: 400 });
+  }
+
+  const configuredSecret = process.env.WEBHOOK_SECRET;
+  const providedSecret = getWebhookSecret(req, body);
+
+  if (configuredSecret && providedSecret !== configuredSecret) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
-    const body = await req.json();
-
     // StarSender webhook payload shape:
     // { event: "message", data: { from, body, messageId, timestamp } }
-    const from: string = body?.data?.from ?? body?.from ?? "";
-    const messageText: string = body?.data?.body ?? body?.body ?? "";
-    const messageId: string = body?.data?.messageId ?? body?.messageId ?? "";
+    const event = getPayloadValue(body, ["event", "type"]);
+    const from = getPayloadValue(body, ["from", "sender", "phone", "number"]);
+    const messageText = getPayloadValue(body, ["body", "message", "text"]);
+    const messageId = getPayloadValue(body, ["messageId", "id"]);
+
+    if (event && !["message", "messages.upsert", "incoming_message"].includes(event)) {
+      return NextResponse.json({ ok: true, ignored: true, event });
+    }
 
     if (!from || !messageText) {
       return NextResponse.json({ ok: true }); // ignore empty
