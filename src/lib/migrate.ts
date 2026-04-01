@@ -43,6 +43,7 @@ async function main() {
       "id" text PRIMARY KEY NOT NULL,
       "name" text NOT NULL,
       "email" text NOT NULL UNIQUE,
+      "phone_number" text,
       "email_verified" boolean NOT NULL DEFAULT false,
       "image" text,
       "created_at" timestamp NOT NULL DEFAULT now(),
@@ -167,6 +168,11 @@ async function main() {
       "created_at" timestamp DEFAULT now(),
       "updated_at" timestamp DEFAULT now()
     )
+  `;
+
+  await sql`
+    ALTER TABLE "user"
+    ADD COLUMN IF NOT EXISTS "phone_number" text
   `;
 
   await sql`

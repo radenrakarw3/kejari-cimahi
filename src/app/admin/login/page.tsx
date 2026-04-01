@@ -22,7 +22,12 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await signIn.email({ email, password });
-      router.push("/admin/dashboard");
+      const meRes = await fetch("/api/auth/me", { cache: "no-store" });
+      const meData = (await meRes.json().catch(() => null)) as {
+        user?: { bidangId?: number | null };
+      } | null;
+
+      router.push(meData?.user?.bidangId ? "/bidang" : "/admin/dashboard");
     } catch {
       toast.error("Email atau password salah");
     } finally {

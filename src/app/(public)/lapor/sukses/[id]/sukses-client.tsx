@@ -19,6 +19,7 @@ interface SuksesClientProps {
 export function SuksesClient({ report }: SuksesClientProps) {
   const [copied, setCopied] = useState(false);
   const [quickRating, setQuickRating] = useState(0);
+  const hasWhatsApp = report.nomorWa?.trim().length > 0;
 
   const copyNomor = () => {
     navigator.clipboard.writeText(report.nomorLaporan);
@@ -89,10 +90,18 @@ export function SuksesClient({ report }: SuksesClientProps) {
           >
             <MessageSquare className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: "#f0b429" }} />
             <div>
-              <div className="text-sm font-medium mb-1" style={{ color: "#f5c518" }}>Konfirmasi via WhatsApp</div>
+              <div className="text-sm font-medium mb-1" style={{ color: "#f5c518" }}>
+                {hasWhatsApp ? "Konfirmasi via WhatsApp" : "Konfirmasi Manual"}
+              </div>
               <div className="text-xs" style={{ color: "#a8d5b5" }}>
-                Konfirmasi SAHATE dikirim ke{" "}
-                <span className="font-mono" style={{ color: "#c8e6d0" }}>{report.nomorWa}</span>
+                {hasWhatsApp ? (
+                  <>
+                    Konfirmasi SAHATE dikirim ke{" "}
+                    <span className="font-mono" style={{ color: "#c8e6d0" }}>{report.nomorWa}</span>
+                  </>
+                ) : (
+                  "Nomor WhatsApp tidak diisi, jadi simpan nomor laporan ini untuk tindak lanjut manual oleh petugas."
+                )}
               </div>
             </div>
           </div>

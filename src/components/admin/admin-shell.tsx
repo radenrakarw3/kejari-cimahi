@@ -6,12 +6,10 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   FileText,
-  Sparkles,
   LogOut,
   Menu,
   X,
   ChevronRight,
-  PlusSquare,
   Star,
 } from "lucide-react";
 import { signOut } from "@/lib/auth-client";
@@ -22,8 +20,7 @@ import Image from "next/image";
 const NAV_ITEMS = [
   { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/laporan", label: "Semua Laporan", icon: FileText },
-  { href: "/admin/laporan/baru", label: "Input Laporan", icon: PlusSquare },
-  { href: "/admin/ai-assistant", label: "Asisten AI SAHATE", icon: Sparkles },
+  { href: "/admin/ai-assistant", label: "Bank Data AI", icon: Star },
   { href: "/admin/skm", label: "Survey (SKM)", icon: Star },
 ];
 
@@ -105,9 +102,8 @@ export function AdminShell({ children, session }: AdminShellProps) {
             const active =
               pathname === item.href ||
               (item.href !== "/admin/dashboard" &&
-               item.href !== "/admin/laporan/baru" &&
                pathname.startsWith(item.href) &&
-               !pathname.startsWith("/admin/laporan/baru"));
+               true);
             return (
               <Link
                 key={item.href}

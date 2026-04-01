@@ -1,7 +1,6 @@
 import { Suspense } from "react";
 import { LaporanTable } from "@/components/admin/laporan-table";
 import { LaporanFilters } from "@/components/admin/laporan-filters";
-import { Plus } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
@@ -21,13 +20,12 @@ export default async function LaporanPage({
           <h1 className="text-2xl font-bold" style={{ color: "#f5c518" }}>Laporan Masuk</h1>
           <p className="text-sm mt-1" style={{ color: "#a8d5b5" }}>Kelola semua laporan masyarakat</p>
         </div>
-        <Link href="/admin/laporan/baru">
+        <Link href="/ptsp">
           <Button
             className="font-semibold rounded-xl gap-2 text-sm"
             style={{ backgroundColor: "#f0b429", color: "#071f0d" }}
           >
-            <Plus className="w-4 h-4" />
-            Input Offline
+            Buka PTSP
           </Button>
         </Link>
       </div>

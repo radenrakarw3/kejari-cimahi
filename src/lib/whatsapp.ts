@@ -64,3 +64,74 @@ export function buildConfirmationMessage(
 
   return parts.join("\n");
 }
+
+export function buildDisposisiMessage(
+  nama: string,
+  nomorLaporan: string,
+  bidangNama: string,
+  catatan?: string | null
+): string {
+  const parts = [
+    `Halo ${nama}, laporan Anda dengan nomor ${nomorLaporan} sudah kami teruskan ke ${bidangNama}.`,
+    `Tim terkait akan menindaklanjuti laporan Anda secepatnya.`,
+  ];
+
+  if (catatan?.trim()) {
+    parts.push("", `Catatan admin: ${catatan.trim()}`);
+  }
+
+  parts.push("", "Kami akan mengabari lagi saat proses berjalan atau sudah selesai.");
+
+  return parts.join("\n");
+}
+
+export function buildProsesMessage(
+  nama: string,
+  nomorLaporan: string,
+  bidangNama: string
+): string {
+  return [
+    `Halo ${nama}, laporan ${nomorLaporan} saat ini sedang diproses oleh ${bidangNama}.`,
+    "Terima kasih sudah menunggu. Kami akan mengirim pembaruan kembali setelah penanganan selesai.",
+  ].join("\n");
+}
+
+export function buildSelesaiMessage(
+  nama: string,
+  nomorLaporan: string,
+  bidangNama?: string | null
+): string {
+  return [
+    `Halo ${nama}, laporan ${nomorLaporan} telah selesai ditindaklanjuti${bidangNama ? ` oleh ${bidangNama}` : ""}.`,
+    "Bila masih ada hal yang perlu disampaikan, Anda bisa membalas pesan ini kapan saja.",
+  ].join("\n");
+}
+
+export function buildBidangDisposisiNotification(params: {
+  bidangNama: string;
+  nomorLaporan: string;
+  namaWarga: string;
+  isiLaporan: string;
+  catatan?: string | null;
+}) {
+  const preview = params.isiLaporan.length > 220
+    ? `${params.isiLaporan.slice(0, 220)}...`
+    : params.isiLaporan;
+
+  const parts = [
+    `Disposisi baru untuk ${params.bidangNama}.`,
+    `Nomor laporan: ${params.nomorLaporan}`,
+    `Nama warga: ${params.namaWarga}`,
+    "",
+    "Ringkasan laporan:",
+    preview,
+  ];
+
+  if (params.catatan?.trim()) {
+    parts.push("", `Catatan admin: ${params.catatan.trim()}`);
+  }
+
+  parts.push("", "Silakan buka portal bidang untuk menindaklanjuti laporan ini.");
+
+  return parts.join("\n");
+}

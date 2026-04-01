@@ -16,6 +16,7 @@
     "db:migrate": "tsx --env-file=.env.local src/lib/migrate.ts",
     "db:seed": "tsx --env-file=.env.local src/lib/seed.ts",
     "create-admin": "tsx --env-file=.env.local src/lib/create-admin.ts",
+    "create-bidang-user": "tsx --env-file=.env.local src/lib/create-bidang-user.ts",
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {

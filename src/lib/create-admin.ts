@@ -1,5 +1,8 @@
 import { config } from "dotenv";
 config({ path: ".env.local" });
+import { eq } from "drizzle-orm";
+import { db } from "./db";
+import { user } from "./schema";
 
 // This script creates the first admin user
 // Run: npx tsx --env-file=.env.local src/lib/create-admin.ts
@@ -29,6 +32,11 @@ async function main() {
   try { data = JSON.parse(text); } catch { console.log("Raw:", text); }
 
   if (res.ok) {
+    const createdEmail = ((data.user as Record<string, unknown>)?.email ?? email) as string;
+    await db
+      .update(user)
+      .set({ role: "admin", bidangId: null, updatedAt: new Date() })
+      .where(eq(user.email, createdEmail));
     console.log("✅ Admin created:", (data.user as Record<string, unknown>)?.email ?? data);
   } else {
     console.error("❌ Failed:", data.message ?? text);

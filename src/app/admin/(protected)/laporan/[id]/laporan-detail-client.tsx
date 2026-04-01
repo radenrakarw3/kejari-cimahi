@@ -8,8 +8,8 @@ import { format } from "date-fns";
 import { id } from "date-fns/locale";
 import {
   ArrowLeft, Globe, MessageSquare, Laptop, MapPin, Clock, Send,
-  Sparkles, ChevronDown, FileText, User, Phone, Home, Building2,
-  CheckCircle2, Brain, Copy,
+  ChevronDown, FileText, User, Phone, Home, Building2,
+  CheckCircle2,
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -26,8 +26,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; 
 type Report = {
   id: number; nomorLaporan: string; nama: string; nomorWa: string;
   kelurahan: string; rw: string; isiLaporan: string; status: string;
-  source: string; aiCategorySuggestion: string | null;
-  aiConfidenceScore: string | null; aiAlasan: string | null;
+  source: string;
   createdAt: Date | null; updatedAt: Date | null;
   kategoriId: number | null; kategoriNama: string | null;
   kategoriWarna: string | null; kategoriKode: string | null; kategoriIcon: string | null;
@@ -68,9 +67,6 @@ export function LaporanDetailClient({ report, disposisiList, waLogsList, allBida
   const [catatan, setCatatan] = useState("");
   const [waMessage, setWaMessage] = useState("");
   const [waLogs, setWaLogs] = useState<WaLog[]>(waLogsList);
-  const [aiTemplates, setAiTemplates] = useState<string[]>([]);
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiOpen, setAiOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [sendingWa, setSendingWa] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -138,26 +134,6 @@ export function LaporanDetailClient({ report, disposisiList, waLogsList, allBida
       toast.success("Pesan terkirim");
     } catch { toast.error("Gagal mengirim pesan WA"); }
     finally { setSendingWa(false); }
-  };
-
-  const generateAiReply = async () => {
-    setAiLoading(true);
-    setAiOpen(true);
-    try {
-      const res = await fetch("/api/ai/generate-reply", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kategori: report.aiCategorySuggestion ?? "LAINNYA", isiLaporan: report.isiLaporan }),
-      });
-      const data = await res.json();
-      setAiTemplates(data.templates ?? []);
-    } catch { toast.error("Gagal generate template"); }
-    finally { setAiLoading(false); }
-  };
-
-  const applyTemplate = (tpl: string) => {
-    setWaMessage(tpl.replace("[NAMA]", report.nama).replace("[NOMOR]", report.nomorLaporan));
-    setAiOpen(false);
-    setActiveTab("wa");
   };
 
   const TABS: Array<{ key: "info" | "disposisi" | "wa"; label: string; icon: React.ElementType; badge?: number }> = [
@@ -299,25 +275,6 @@ export function LaporanDetailClient({ report, disposisiList, waLogsList, allBida
                   </SelectContent>
                 </Select>
               </div>
-
-              {/* AI Suggestion */}
-              {report.aiCategorySuggestion && (
-                <div
-                  className="rounded-xl p-3"
-                  style={{ backgroundColor: "rgba(240,180,41,0.08)", border: "1px solid rgba(240,180,41,0.2)" }}
-                >
-                  <div className="flex items-center gap-2 text-xs font-semibold mb-1" style={{ color: "#f0b429" }}>
-                    <Brain className="w-3.5 h-3.5" />
-                    Saran AI
-                    {report.aiConfidenceScore && (
-                      <span className="ml-auto" style={{ color: "rgba(240,180,41,0.7)" }}>
-                        {Math.round(parseFloat(report.aiConfidenceScore) * 100)}%
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-xs" style={{ color: "#a8d5b5" }}>{report.aiAlasan}</div>
-                </div>
-              )}
             </div>
 
             {/* Right: isi laporan */}
@@ -488,64 +445,6 @@ export function LaporanDetailClient({ report, disposisiList, waLogsList, allBida
               </div>
             </div>
 
-            {/* AI Templates */}
-            {aiOpen && (
-              <div
-                className="rounded-2xl p-4"
-                style={{ backgroundColor: "rgba(240,180,41,0.07)", border: "1px solid rgba(240,180,41,0.2)" }}
-              >
-                <div className="flex items-center gap-2 text-sm font-semibold mb-3" style={{ color: "#f0b429" }}>
-                  <Brain className="w-4 h-4" />
-                  Template Balasan AI
-                </div>
-                {aiLoading ? (
-                  <div className="text-center py-6 text-sm" style={{ color: "#a8d5b5" }}>
-                    <span className="flex items-center justify-center gap-2">
-                      <span
-                        className="w-4 h-4 border-2 rounded-full animate-spin"
-                        style={{ borderColor: "rgba(240,180,41,0.3)", borderTopColor: "#f0b429" }}
-                      />
-                      Membuat template...
-                    </span>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {aiTemplates.map((tpl, i) => (
-                      <div
-                        key={i}
-                        className="rounded-xl p-3"
-                        style={{ backgroundColor: "#0d4d22", border: "1px solid rgba(240,180,41,0.15)" }}
-                      >
-                        <div className="text-xs mb-2" style={{ color: "rgba(168,213,181,0.6)" }}>
-                          {["Singkat", "Menengah", "Formal"][i] ?? `Template ${i + 1}`}
-                        </div>
-                        <p className="text-xs leading-relaxed mb-3 whitespace-pre-wrap" style={{ color: "#c8e6d0" }}>{tpl}</p>
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            onClick={() => applyTemplate(tpl)}
-                            className="h-7 text-xs rounded-lg font-semibold"
-                            style={{ backgroundColor: "#f0b429", color: "#071f0d" }}
-                          >
-                            Gunakan
-                          </Button>
-                          <Button
-                            size="sm"
-                            onClick={() => { navigator.clipboard.writeText(tpl); toast.success("Disalin!"); }}
-                            className="h-7 text-xs rounded-lg"
-                            style={{ backgroundColor: "rgba(240,180,41,0.1)", color: "#a8d5b5", border: "1px solid rgba(240,180,41,0.2)" }}
-                          >
-                            <Copy className="w-3 h-3 mr-1" />
-                            Salin
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
             {/* Message input */}
             <div className="rounded-2xl p-4" style={cardStyle}>
               <Textarea
@@ -556,15 +455,6 @@ export function LaporanDetailClient({ report, disposisiList, waLogsList, allBida
                 style={inputStyle}
               />
               <div className="flex gap-2">
-                <Button
-                  onClick={generateAiReply}
-                  disabled={aiLoading}
-                  className="rounded-xl text-xs gap-1.5 font-semibold"
-                  style={{ backgroundColor: "rgba(240,180,41,0.12)", color: "#f0b429", border: "1px solid rgba(240,180,41,0.25)" }}
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  Generate AI
-                </Button>
                 <Button
                   onClick={handleSendWa}
                   disabled={sendingWa || !waMessage.trim()}

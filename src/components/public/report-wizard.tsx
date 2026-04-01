@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -37,8 +37,16 @@ interface FormData {
   nomorWa: string;
   kelurahan: string;
   rw: string;
+  kategoriId: string;
   isiLaporan: string;
 }
+
+type CategoryOption = {
+  id: number;
+  nama: string;
+  kode: string;
+  warna: string;
+};
 
 const stepSchemas = [
   z.object({ nama: z.string().min(3, "Nama minimal 3 karakter") }),
@@ -49,6 +57,7 @@ const stepSchemas = [
   }),
   z.object({ kelurahan: z.string().min(1, "Pilih kelurahan") }),
   z.object({ rw: z.string().min(1, "Pilih RW") }),
+  z.object({ kategoriId: z.string().min(1, "Pilih kategori laporan") }),
   z.object({
     isiLaporan: z
       .string()
@@ -62,6 +71,7 @@ const STEPS = [
   { title: "Nomor WhatsApp", desc: "Nomor untuk menerima konfirmasi", icon: Phone },
   { title: "Kelurahan", desc: "Di kelurahan mana Anda tinggal?", icon: MapPin },
   { title: "RW", desc: "RW berapa lokasi Anda?", icon: Home },
+  { title: "Kategori Laporan", desc: "Pilih jenis laporan Anda", icon: FileText },
   { title: "Isi Laporan", desc: "Ceritakan laporan Anda secara detail", icon: FileText },
   { title: "Review & Kirim", desc: "Periksa kembali sebelum mengirim", icon: Eye },
 ];
@@ -94,6 +104,8 @@ const selectPopupStyle = {
 
 export function ReportWizard() {
   const router = useRouter();
+  const [categories, setCategories] = useState<CategoryOption[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [step, setStep] = useState(0);
   const [direction, setDirection] = useState(1);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -103,11 +115,28 @@ export function ReportWizard() {
     nomorWa: "",
     kelurahan: "",
     rw: "",
+    kategoriId: "",
     isiLaporan: "",
   });
 
-  const isReviewStep = step === 5;
+  const isReviewStep = step === 6;
   const progress = (step / (STEPS.length - 1)) * 100;
+
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const res = await fetch("/api/public/categories");
+        const data = await res.json();
+        setCategories(data.data ?? []);
+      } catch {
+        toast.error("Gagal memuat kategori laporan");
+      } finally {
+        setCategoriesLoading(false);
+      }
+    };
+
+    loadCategories();
+  }, []);
 
   const updateField = (field: keyof FormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -117,7 +146,7 @@ export function ReportWizard() {
   const validateStep = (): boolean => {
     if (isReviewStep) return true;
     const schema = stepSchemas[step];
-    const fieldMap: (keyof FormData)[] = ["nama", "nomorWa", "kelurahan", "rw", "isiLaporan"];
+    const fieldMap: (keyof FormData)[] = ["nama", "nomorWa", "kelurahan", "rw", "kategoriId", "isiLaporan"];
     const key = fieldMap[step];
     const result = schema.safeParse({ [key]: formData[key] });
     if (!result.success) {
@@ -354,8 +383,31 @@ export function ReportWizard() {
               </div>
             )}
 
-            {/* Step 4 — Isi Laporan */}
+            {/* Step 4 — Kategori */}
             {step === 4 && (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium" style={labelStyle}>Kategori Laporan</Label>
+                <Select value={formData.kategoriId} onValueChange={(v) => updateField("kategoriId", v ?? "")}>
+                  <SelectTrigger className="h-12 w-full rounded-xl text-sm px-3" style={inputStyle}>
+                    <SelectValue placeholder={categoriesLoading ? "Memuat kategori..." : "Pilih kategori laporan..."} />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-2xl p-2" style={selectPopupStyle}>
+                    <SelectItem value="unknown" className="rounded-xl px-3 py-2.5 text-sm" style={{ color: "#d9f0df" }}>
+                      Belum Tahu
+                    </SelectItem>
+                    {categories.map((category) => (
+                      <SelectItem key={category.id} value={String(category.id)} className="rounded-xl px-3 py-2.5 text-sm" style={{ color: "#d9f0df" }}>
+                        {category.nama}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {errors.kategoriId && <p className="text-xs mt-1" style={errorStyle}>{errors.kategoriId}</p>}
+              </div>
+            )}
+
+            {/* Step 5 — Isi Laporan */}
+            {step === 5 && (
               <div className="space-y-2">
                 <Label className="text-sm font-medium" style={labelStyle}>Isi Laporan</Label>
                 <Textarea
@@ -380,14 +432,22 @@ export function ReportWizard() {
               </div>
             )}
 
-            {/* Step 5 — Review */}
-            {step === 5 && (
+            {/* Step 6 — Review */}
+            {step === 6 && (
               <div className="space-y-3">
                 {[
                   { label: "Nama", value: formData.nama, icon: User },
                   { label: "WhatsApp", value: formData.nomorWa, icon: Phone },
                   { label: "Kelurahan", value: formData.kelurahan, icon: MapPin },
                   { label: "RW", value: `RW ${formData.rw}`, icon: Home },
+                  {
+                    label: "Kategori",
+                    value:
+                      formData.kategoriId === "unknown"
+                        ? "Belum Tahu"
+                        : categories.find((item) => String(item.id) === formData.kategoriId)?.nama ?? "-",
+                    icon: FileText,
+                  },
                 ].map((item) => (
                   <div
                     key={item.label}

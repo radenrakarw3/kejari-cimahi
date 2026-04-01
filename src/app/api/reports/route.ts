@@ -7,11 +7,21 @@ import { sendWhatsApp, buildConfirmationMessage, normalizePhone } from "@/lib/wh
 import { broadcastSseEvent } from "@/lib/sse";
 import { auth } from "@/lib/auth";
 import { eq, desc, ilike, and, count, inArray } from "drizzle-orm";
+import { z } from "zod";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const parsed = insertReportSchema.safeParse(body);
+    const isOffline = body.source === "offline";
+    const offlineSchema = insertReportSchema.extend({
+      nomorWa: z.string().regex(/^(08|628)\d{8,12}$/).or(z.string().length(0)),
+    });
+    const parsed = (isOffline ? offlineSchema : insertReportSchema).safeParse(body);
+    const kategoriValue = body.kategoriId;
+    const kategoriId =
+      kategoriValue === "unknown" || kategoriValue === "" || kategoriValue == null
+        ? null
+        : Number(kategoriValue);
 
     if (!parsed.success) {
       return NextResponse.json(
@@ -20,13 +30,30 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (kategoriId !== null) {
+      if (!Number.isInteger(kategoriId) || kategoriId <= 0) {
+        return NextResponse.json({ error: "Kategori tidak valid" }, { status: 400 });
+      }
+
+      const [selectedCategory] = await db
+        .select({ id: categories.id })
+        .from(categories)
+        .where(eq(categories.id, kategoriId))
+        .limit(1);
+
+      if (!selectedCategory) {
+        return NextResponse.json({ error: "Kategori tidak ditemukan" }, { status: 400 });
+      }
+    }
+
     const nomorLaporan = await generateNomorLaporan();
 
     const [report] = await db
       .insert(reports)
       .values({
         ...parsed.data,
-        nomorWa: normalizePhone(parsed.data.nomorWa),
+        kategoriId,
+        nomorWa: parsed.data.nomorWa ? normalizePhone(parsed.data.nomorWa) : "",
         nomorLaporan,
         source: body.source ?? "web",
         status: "masuk",
@@ -36,18 +63,13 @@ export async function POST(req: NextRequest) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
     const surveyUrl = `${appUrl}/survey/${report.id}`;
 
-    // Fire and forget: AI categorization
-    fetch(`${appUrl}/api/ai/categorize`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reportId: report.id, isiLaporan: report.isiLaporan }),
-    }).catch(() => {});
-
     // Fire and forget: WA confirmation
-    sendWhatsApp(
-      report.nomorWa,
-      buildConfirmationMessage(report.nama, report.nomorLaporan, surveyUrl)
-    ).catch(() => {});
+    if (report.nomorWa) {
+      sendWhatsApp(
+        report.nomorWa,
+        buildConfirmationMessage(report.nama, report.nomorLaporan, surveyUrl)
+      ).catch(() => {});
+    }
 
     // Broadcast SSE
     broadcastSseEvent({ type: "new_report", report });
@@ -99,8 +121,6 @@ export async function GET(req: NextRequest) {
         isiLaporan: reports.isiLaporan,
         status: reports.status,
         source: reports.source,
-        aiCategorySuggestion: reports.aiCategorySuggestion,
-        aiConfidenceScore: reports.aiConfidenceScore,
         createdAt: reports.createdAt,
         updatedAt: reports.updatedAt,
         kategoriId: reports.kategoriId,

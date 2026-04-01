@@ -4,6 +4,10 @@ import { aiKnowledgeEntries } from "./schema";
 import { desc, eq, sql } from "drizzle-orm";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+const GENERATE_MODEL_CANDIDATES = [
+  process.env.GEMINI_TEXT_MODEL,
+  "gemini-2.5-flash-lite",
+].filter((value): value is string => Boolean(value));
 
 interface KnowledgeMatch {
   id: number;
@@ -27,7 +31,7 @@ export async function generateAndStoreEmbedding(entryId: number, text: string): 
   );
 }
 
-async function findRelevantKnowledge(query: string, limit = 3): Promise<KnowledgeMatch[]> {
+export async function findRelevantKnowledge(query: string, limit = 3): Promise<KnowledgeMatch[]> {
   // Semantic search via vector similarity
   try {
     const queryEmbedding = await generateEmbedding(query);
@@ -98,115 +102,119 @@ Isi: ${entry.content}`
     .join("\n\n");
 }
 
-export interface CategorizeResult {
-  kategori: string;
-  confidence: number;
-  alasan: string;
-  bidangSaran: string;
+function isReportIntent(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return [
+    "lapor",
+    "laporan",
+    "pengaduan",
+    "aduan",
+    "melapor",
+    "buat laporan",
+    "mau lapor",
+    "ingin lapor",
+    "saya mau lapor",
+  ].some((keyword) => normalized.includes(keyword));
 }
 
-export async function categorizeReport(
-  isiLaporan: string
-): Promise<CategorizeResult> {
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+export async function answerWhatsAppFromKnowledge(params: {
+  message: string;
+  history: Array<{ role: "user" | "admin"; content: string }>;
+  appUrl?: string;
+}): Promise<{
+  reply: string;
+  usedKnowledge: boolean;
+  routeToReportForm: boolean;
+}> {
+  const { message, history, appUrl } = params;
+  const normalizedAppUrl = (appUrl ?? "http://localhost:3000").replace(/\/$/, "");
 
-  const prompt = `Kamu adalah sistem kategorisasi laporan untuk SAHATE KEJARI CIMAHI (Sahabat Hukum Terpadu Kejaksaan Negeri Cimahi), Indonesia.
-
-Laporan dari masyarakat:
-"${isiLaporan}"
-
-Kategorikan laporan ini ke salah satu kategori berikut:
-- KORUPSI: Tindak Pidana Korupsi, gratifikasi, suap, penggelapan uang negara
-- NARKOTIKA: Narkoba, psikotropika, obat terlarang
-- PIDANA_UMUM: Pencurian, penipuan, penganiayaan, perampokan, kejahatan umum
-- PERDATA: Sengketa sipil, kontrak, properti, waris
-- KETENAGAKERJAAN: PHK, upah tidak dibayar, pelanggaran hak kerja
-- LINGKUNGAN: Pencemaran, perusakan lingkungan, limbah ilegal
-- KONSULTASI: Pertanyaan hukum umum, konsultasi
-- LAINNYA: Tidak masuk kategori di atas
-
-Bidang penanganan:
-- KORUPSI, NARKOTIKA → PIDSUS (Tindak Pidana Khusus)
-- PIDANA_UMUM → PIDUM (Tindak Pidana Umum)
-- PERDATA, KETENAGAKERJAAN → DATUN (Perdata & TUN)
-- LINGKUNGAN → INTEL (Intelijen)
-- KONSULTASI, LAINNYA → PBIN (Pembinaan)
-
-Balas HANYA dalam format JSON valid berikut (tanpa teks lain):
-{
-  "kategori": "KODE_KATEGORI",
-  "confidence": 0.95,
-  "alasan": "penjelasan singkat 1 kalimat mengapa laporan ini masuk kategori tersebut",
-  "bidangSaran": "KODE_BIDANG"
-}`;
-
-  try {
-    const result = await model.generateContent(prompt);
-    const text = result.response.text().trim();
-
-    // Extract JSON from response (handle cases with extra text)
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error("No JSON in response");
-
-    const parsed = JSON.parse(jsonMatch[0]) as CategorizeResult;
-    return parsed;
-  } catch {
+  if (isReportIntent(message)) {
     return {
-      kategori: "LAINNYA",
-      confidence: 0.5,
-      alasan: "Tidak dapat dikategorikan secara otomatis",
-      bidangSaran: "PBIN",
+      reply: `Tentu, kalau Bapak/Ibu ingin membuat laporan resmi silakan langsung isi melalui link ini ya: ${normalizedAppUrl}/lapor. Setelah dikirim, tim kami akan menindaklanjuti sesuai alur yang berlaku.`,
+      usedKnowledge: false,
+      routeToReportForm: true,
     };
   }
-}
 
-export async function generateWaReply(
-  kategori: string,
-  isiLaporan: string,
-): Promise<string[]> {
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-  const prompt = `Kamu adalah asisten administrasi SAHATE KEJARI CIMAHI.
-
-Laporan yang diterima:
-Kategori: ${kategori}
-Isi: "${isiLaporan}"
-
-Buat 3 template balasan WhatsApp untuk laporan ini. Setiap template harus:
-- Dalam Bahasa Indonesia
-- Sopan dan profesional tapi tetap ramah
-- TANPA format markdown (tidak ada *bold*, _italic_)
-- Ganti [NAMA] dengan nama pelapor, [NOMOR] dengan nomor laporan
-
-Ketiga template:
-1. Singkat (maks 200 karakter)
-2. Menengah (maks 500 karakter)
-3. Formal resmi (maks 800 karakter)
-
-Balas HANYA dalam format JSON:
-{
-  "templates": [
-    "template singkat...",
-    "template menengah...",
-    "template formal..."
-  ]
-}`;
+  let knowledgeEntries: KnowledgeMatch[] = [];
 
   try {
-    const result = await model.generateContent(prompt);
-    const text = result.response.text().trim();
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error("No JSON");
-
-    const parsed = JSON.parse(jsonMatch[0]) as { templates: string[] };
-    return parsed.templates ?? [];
-  } catch {
-    return [
-      "Terima kasih, laporan Anda di SAHATE Kejari Cimahi dengan nomor [NOMOR] segera kami proses.",
-      "Halo [NAMA], laporan Anda dengan nomor [NOMOR] telah kami terima melalui SAHATE Kejari Cimahi dan akan segera diproses. Terima kasih.",
-      "Assalamualaikum Wr. Wb.\n\nKepada Yth. [NAMA],\n\nLaporan Anda nomor [NOMOR] telah kami terima melalui SAHATE Kejari Cimahi dan akan diproses sesuai prosedur yang berlaku.\n\nTerima kasih.\nSAHATE Kejari Cimahi",
-    ];
+    knowledgeEntries = await findRelevantKnowledge(message, 4);
+  } catch (err) {
+    console.error("[answerWhatsAppFromKnowledge] findRelevantKnowledge error:", err);
   }
+
+  if (knowledgeEntries.length === 0) {
+    return {
+      reply:
+        "Terima kasih, pesan Bapak/Ibu sudah kami terima. Untuk memastikan informasinya tepat, pertanyaan ini akan kami bantu cek lebih lanjut oleh admin. Jika Bapak/Ibu ingin membuat laporan resmi, silakan isi melalui link ini ya: " +
+        `${normalizedAppUrl}/lapor`,
+      usedKnowledge: false,
+      routeToReportForm: false,
+    };
+  }
+
+  const historyText =
+    history.length === 0
+      ? "(belum ada riwayat)"
+      : history
+          .map((item) => `[${item.role === "user" ? "Warga" : "Admin"}]: ${item.content}`)
+          .join("\n");
+
+  const knowledgeContext = buildKnowledgeContext(knowledgeEntries);
+  const prompt = `Kamu adalah admin WhatsApp SAHATE Kejaksaan Negeri Cimahi.
+
+Balas warga dengan gaya yang hangat, sopan, natural, dan humanis. Jangan terdengar seperti bot, jangan mengaku AI, dan jangan menggunakan markdown.
+
+ATURAN UTAMA:
+1. Jawaban hanya boleh berdasarkan BANK DATA ADMIN di bawah ini.
+2. Jangan menambah fakta baru yang tidak ada di referensi.
+3. Jika referensi tidak cukup untuk menjawab lengkap, sampaikan dengan sopan bahwa admin akan membantu mengecek lebih lanjut.
+4. Jika warga terlihat ingin tahu prosedur laporan, arahkan dengan lembut ke link ini: ${normalizedAppUrl}/lapor
+5. Maksimal 500 karakter.
+
+RIWAYAT CHAT:
+${historyText}
+
+PESAN BARU WARGA:
+"${message}"
+
+BANK DATA ADMIN:
+${knowledgeContext}
+
+Balas hanya isi pesan jawaban akhir.`;
+
+  for (const modelName of GENERATE_MODEL_CANDIDATES) {
+    try {
+      const model = genAI.getGenerativeModel({ model: modelName });
+      const result = await model.generateContent(prompt);
+      const reply = result.response.text().trim().replace(/\*\*/g, "");
+
+      if (!reply) {
+        throw new Error(`Empty AI reply from ${modelName}`);
+      }
+
+      return {
+        reply,
+        usedKnowledge: true,
+        routeToReportForm: false,
+      };
+    } catch (err) {
+      console.error(`[answerWhatsAppFromKnowledge] AI error (${modelName}):`, err);
+    }
+  }
+
+  const fallback = knowledgeEntries[0];
+  const summary = fallback.content.length > 320
+    ? `${fallback.content.slice(0, 320)}...`
+    : fallback.content;
+
+  return {
+    reply: `Baik, saya bantu sampaikan informasinya ya. ${summary}`,
+    usedKnowledge: true,
+    routeToReportForm: false,
+  };
 }
 
 export interface ConversationResult {
@@ -242,8 +250,13 @@ export async function processConversation(params: {
 
   const { message, history, collectedFields, userReports, validKelurahan, validRw } = params;
 
-  const knowledgeEntries = await findRelevantKnowledge(message, 4);
-  const knowledgeContext = buildKnowledgeContext(knowledgeEntries);
+  let knowledgeContext = buildKnowledgeContext([]);
+  try {
+    const knowledgeEntries = await findRelevantKnowledge(message, 4);
+    knowledgeContext = buildKnowledgeContext(knowledgeEntries);
+  } catch (err) {
+    console.error("[processConversation] findRelevantKnowledge error:", err);
+  }
 
   const historyText =
     history.length === 0

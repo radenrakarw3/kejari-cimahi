@@ -44,7 +44,7 @@ const categories = [
 
 const steps = [
   { no: "01", title: "Isi Formulir", desc: "Isi data diri dan uraian laporan secara bertahap", icon: FileText },
-  { no: "02", title: "Kategorisasi AI", desc: "Sistem otomatis mengkategorikan laporan Anda", icon: CheckCircle },
+  { no: "02", title: "Pilih Kategori", desc: "Pilih kategori laporan yang paling sesuai", icon: CheckCircle },
   { no: "03", title: "Konfirmasi WA", desc: "Nomor laporan terkirim ke WhatsApp Anda", icon: MessageSquare },
   { no: "04", title: "Ditindaklanjuti", desc: "Tim SAHATE Kejari Cimahi memproses laporan Anda", icon: Building2 },
 ];
@@ -294,7 +294,7 @@ export default function LandingPage() {
               Jenis Laporan yang Diterima
             </motion.h2>
             <motion.p variants={fadeUp} className="max-w-xl mx-auto text-sm" style={{ color: "#a8d5b5" }}>
-              AI kami otomatis mengkategorikan dan meneruskan laporan ke bidang yang tepat
+              Pilih kategori yang paling sesuai agar laporan Anda langsung masuk ke alur penanganan yang tepat
             </motion.p>
           </motion.div>
 
