@@ -334,6 +334,94 @@ Balas hanya isi pesan final.`;
   }
 }
 
+export async function generateIntakeStepReply(params: {
+  stage:
+    | "ask_name"
+    | "ask_kelurahan"
+    | "ask_rw"
+    | "ask_issue"
+    | "confirm_report_intent"
+    | "invalid_kelurahan"
+    | "invalid_rw"
+    | "new_report_start";
+  userMessage?: string;
+  nama?: string;
+  kelurahan?: string;
+  rw?: string;
+  nomorLaporanAktif?: string;
+  optionsText?: string;
+}): Promise<string> {
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+  const query = [params.userMessage, params.optionsText, params.nomorLaporanAktif]
+    .filter(Boolean)
+    .join(" ");
+  const knowledgeEntries = await findRelevantKnowledge(query || "humanis admin whatsapp", 3);
+  const knowledgeContext = buildKnowledgeContext(knowledgeEntries);
+
+  const stageGuidance: Record<string, string> = {
+    ask_name: "Sapa warga dengan hangat dan ajak mulai dari nama lengkap terlebih dahulu.",
+    ask_kelurahan: "Akui nama warga, lalu minta kelurahan dengan ramah.",
+    ask_rw: "Akui kelurahan yang diberikan, lalu minta nomor RW dengan santai dan jelas.",
+    ask_issue: "Akui data awal warga, lalu minta inti pengaduan dengan bahasa sederhana dan menenangkan.",
+    confirm_report_intent:
+      "Jelaskan dengan natural bahwa ada laporan aktif, lalu beri dua opsi: lanjutkan laporan lama atau buat laporan baru.",
+    invalid_kelurahan:
+      "Sampaikan dengan lembut bahwa kelurahan belum terbaca, lalu minta warga memilih salah satu opsi yang tersedia.",
+    invalid_rw:
+      "Sampaikan dengan lembut bahwa RW belum terbaca, lalu minta balas dengan format RW yang sederhana.",
+    new_report_start:
+      "Konfirmasi bahwa admin siap membantu membuat laporan baru terpisah, lalu mulai lagi dari nama lengkap.",
+  };
+
+  const prompt = `Kamu adalah admin WhatsApp SAHATE KEJARI CIMAHI.
+
+Konteks warga:
+- Pesan terakhir warga: "${params.userMessage ?? "-"}"
+- Nama: ${params.nama ?? "-"}
+- Kelurahan: ${params.kelurahan ?? "-"}
+- RW: ${params.rw ?? "-"}
+- Nomor laporan aktif: ${params.nomorLaporanAktif ?? "-"}
+- Opsi tambahan: ${params.optionsText ?? "-"}
+
+Referensi gaya dari bank data admin:
+${knowledgeContext}
+
+Tugas:
+- Buat satu balasan WhatsApp yang terasa seperti admin manusia, bukan template robot.
+- Struktur balasan harus terasa seperti: merespons isi chat warga terlebih dahulu, lalu tindak lanjut berikutnya.
+- Jangan sekadar memberi instruksi; beri pengantar yang hangat dan natural.
+- ${stageGuidance[params.stage]}
+- Jangan gunakan markdown.
+- Maksimal 420 karakter.
+- Jangan terlalu formal, jangan terlalu santai.
+
+Balas hanya isi pesan final.`;
+
+  try {
+    const result = await model.generateContent(prompt);
+    return result.response.text().trim();
+  } catch {
+    switch (params.stage) {
+      case "ask_kelurahan":
+        return `Baik, ${params.nama ?? "Bapak/Ibu"}. Terima kasih ya, datanya sudah saya terima. Supaya lanjutnya lebih rapi, boleh dibantu tulis kelurahan domisili atau lokasi kejadiannya?`;
+      case "ask_rw":
+        return `Siap, kelurahan ${params.kelurahan ?? "tersebut"} sudah saya catat. Sekarang boleh dibantu informasikan nomor RW-nya, misalnya 01 atau 12?`;
+      case "ask_issue":
+        return `Baik, data awalnya sudah masuk. Sekarang Bapak/Ibu boleh ceritakan inti pengaduan atau kebutuhan hukumnya ya, santai saja, yang penting pokok kejadiannya bisa saya pahami.`;
+      case "confirm_report_intent":
+        return `Baik, saya bantu jelaskan dulu ya. Nomor WhatsApp ini masih terhubung dengan laporan aktif ${params.nomorLaporanAktif ?? ""}. Kalau ini tambahan untuk laporan itu, balas lanjutkan. Kalau mau buat laporan baru yang terpisah, balas laporan baru.`;
+      case "invalid_kelurahan":
+        return `Baik, saya bantu pelan-pelan ya. Nama kelurahannya masih belum terbaca dengan pas. Boleh pilih salah satu kelurahan ini: ${params.optionsText ?? ""}`;
+      case "invalid_rw":
+        return "Baik, saya bantu lanjut ya. Nomor RW-nya masih belum terbaca. Boleh dibalas lagi dengan format sederhana seperti 01, 02, atau 12?";
+      case "new_report_start":
+        return "Siap, kita buat laporan baru yang terpisah ya supaya tidak tertukar dengan laporan sebelumnya. Boleh saya mulai dulu dari nama lengkap Bapak/Ibu?";
+      default:
+        return "Baik, saya bantu ya. Boleh diinformasikan nama lengkap Bapak/Ibu terlebih dahulu?";
+    }
+  }
+}
+
 export async function answerLegalQuestion(question: string): Promise<string> {
   const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
   const knowledgeEntries = await findRelevantKnowledge(question, 4);

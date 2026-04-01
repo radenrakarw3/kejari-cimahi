@@ -4,7 +4,12 @@ import { reports, waLogs, waSessions } from "@/lib/schema";
 import { normalizePhone, sendWhatsApp, buildConfirmationMessage } from "@/lib/whatsapp";
 import { broadcastSseEvent } from "@/lib/sse";
 import { generateNomorLaporan } from "@/lib/nomor-laporan";
-import { assessReportIntake, generateClarifyingQuestion, generateWebhookReply } from "@/lib/ai";
+import {
+  assessReportIntake,
+  generateClarifyingQuestion,
+  generateIntakeStepReply,
+  generateWebhookReply,
+} from "@/lib/ai";
 import { KELURAHAN_CIMAHI, RW_OPTIONS } from "@/lib/kelurahan";
 import { eq, and, inArray } from "drizzle-orm";
 
@@ -66,62 +71,10 @@ function normalizeRwInput(value: string) {
   return RW_OPTIONS.includes(normalized) ? normalized : null;
 }
 
-function buildGreetingMessage() {
-  return `Assalamualaikum Wr. Wb.
-
-Halo, selamat datang di layanan WhatsApp SAHATE Kejari Cimahi.
-
-Saya akan membantu mencatat pengaduan Anda dengan sepenuh hati. Agar laporan dibuat dengan tepat, saya akan menanyakan data secara bertahap seperti formulir resmi.
-
-Boleh diinformasikan nama lengkap Anda terlebih dahulu?`;
-}
-
-function buildKelurahanQuestion(nama: string) {
-  return `Baik, ${nama}. Terima kasih.
-
-Selanjutnya, mohon tuliskan kelurahan domisili atau lokasi kejadian Anda.
-
-Pilihan kelurahan yang dapat digunakan:
-${KELURAHAN_CIMAHI.join(", ")}
-
-Jika ingin mengulang dari awal, balas: batal`;
-}
-
-function buildRwQuestion(kelurahan: string) {
-  return `Baik, kelurahan ${kelurahan} sudah dicatat.
-
-Sekarang mohon informasikan nomor RW lokasi Anda, misalnya 01 atau 12.`;
-}
-
-function buildIssueQuestion(nama: string, kelurahan: string, rw: string) {
-  return `Terima kasih, ${nama}. Data sementara Anda sudah kami catat:
-Kelurahan: ${kelurahan}
-RW: ${rw}
-
-Silakan ceritakan pengaduan atau kebutuhan hukum Anda dengan bahasa santai juga tidak apa-apa. Kalau bisa, bantu sertakan inti kejadian, waktu, lokasi, dan pihak yang terlibat atau diketahui.`;
-}
-
 function buildResetMessage() {
   return `Baik, proses pengaduan WhatsApp telah kami reset.
 
 Mari kita mulai lagi dengan tenang. Silakan kirim nama lengkap Anda.`;
-}
-
-function buildNewReportStartMessage() {
-  return `Siap, kita buat laporan baru yang terpisah ya.
-
-Agar datanya rapi dan tidak tertukar dengan laporan sebelumnya, saya bantu catat dari awal.
-
-Boleh diinformasikan nama lengkap Anda terlebih dahulu?`;
-}
-
-function buildExistingReportIntentMessage(nomorLaporan: string) {
-  return `Baik, saat ini nomor WhatsApp Bapak/Ibu masih terhubung dengan laporan aktif ${nomorLaporan}.
-
-Kalau pesan ini adalah tambahan untuk laporan tersebut, balas: lanjutkan.
-Kalau ingin membuat laporan baru yang terpisah, balas: laporan baru.
-
-Saya bantu arahkan pelan-pelan ya agar tidak tertukar.`;
 }
 
 function getWebhookSecret(req: NextRequest, body?: unknown) {
@@ -282,7 +235,10 @@ export async function POST(req: NextRequest) {
         const existingReport = existingReports[0];
 
         if (wantsNewReport(cleanedMessage)) {
-          const reply = buildNewReportStartMessage();
+          const reply = await generateIntakeStepReply({
+            stage: "new_report_start",
+            userMessage: cleanedMessage,
+          });
 
           await db
             .update(waSessions)
@@ -370,7 +326,10 @@ export async function POST(req: NextRequest) {
           })
           .where(eq(waSessions.id, activeSession.id));
 
-        const reply = buildNewReportStartMessage();
+        const reply = await generateIntakeStepReply({
+          stage: "new_report_start",
+          userMessage: cleanedMessage,
+        });
         const sendResult = await sendWhatsApp(from, reply);
         await db.insert(waLogs).values({
           direction: "outbound",
@@ -393,7 +352,11 @@ export async function POST(req: NextRequest) {
 
       if (activeSession.currentStep === "ask_name") {
         const nama = cleanedMessage.slice(0, 120);
-        const reply = buildKelurahanQuestion(nama);
+        const reply = await generateIntakeStepReply({
+          stage: "ask_kelurahan",
+          userMessage: cleanedMessage,
+          nama,
+        });
 
         await db
           .update(waSessions)
@@ -420,10 +383,12 @@ export async function POST(req: NextRequest) {
         const kelurahan = normalizeKelurahanInput(cleanedMessage);
 
         if (!kelurahan) {
-          const reply = `Kelurahan belum terbaca dengan jelas.
-
-Mohon balas dengan salah satu nama kelurahan berikut:
-${KELURAHAN_CIMAHI.join(", ")}`;
+          const reply = await generateIntakeStepReply({
+            stage: "invalid_kelurahan",
+            userMessage: cleanedMessage,
+            nama: activeSession.nama ?? undefined,
+            optionsText: KELURAHAN_CIMAHI.join(", "),
+          });
 
           const sendResult = await sendWhatsApp(from, reply);
           await db.insert(waLogs).values({
@@ -437,7 +402,12 @@ ${KELURAHAN_CIMAHI.join(", ")}`;
           return NextResponse.json({ ok: true, mode: "intake" });
         }
 
-        const reply = buildRwQuestion(kelurahan);
+        const reply = await generateIntakeStepReply({
+          stage: "ask_rw",
+          userMessage: cleanedMessage,
+          nama: activeSession.nama ?? undefined,
+          kelurahan,
+        });
 
         await db
           .update(waSessions)
@@ -464,7 +434,12 @@ ${KELURAHAN_CIMAHI.join(", ")}`;
         const rw = normalizeRwInput(cleanedMessage);
 
         if (!rw) {
-          const reply = "Nomor RW belum sesuai. Mohon balas dengan angka RW yang valid, misalnya 01, 02, atau 12.";
+          const reply = await generateIntakeStepReply({
+            stage: "invalid_rw",
+            userMessage: cleanedMessage,
+            nama: activeSession.nama ?? undefined,
+            kelurahan: activeSession.kelurahan ?? undefined,
+          });
           const sendResult = await sendWhatsApp(from, reply);
           await db.insert(waLogs).values({
             direction: "outbound",
@@ -477,11 +452,13 @@ ${KELURAHAN_CIMAHI.join(", ")}`;
           return NextResponse.json({ ok: true, mode: "intake" });
         }
 
-        const reply = buildIssueQuestion(
-          activeSession.nama ?? "Bapak/Ibu",
-          activeSession.kelurahan ?? "-",
-          rw
-        );
+        const reply = await generateIntakeStepReply({
+          stage: "ask_issue",
+          userMessage: cleanedMessage,
+          nama: activeSession.nama ?? undefined,
+          kelurahan: activeSession.kelurahan ?? undefined,
+          rw,
+        });
 
         await db
           .update(waSessions)
@@ -652,7 +629,10 @@ ${KELURAHAN_CIMAHI.join(", ")}`;
           },
         });
 
-        const reply = buildNewReportStartMessage();
+        const reply = await generateIntakeStepReply({
+          stage: "new_report_start",
+          userMessage: cleanedMessage,
+        });
         const sendResult = await sendWhatsApp(from, reply);
         await db.insert(waLogs).values({
           direction: "outbound",
@@ -666,7 +646,11 @@ ${KELURAHAN_CIMAHI.join(", ")}`;
       }
 
       if (!wantsFollowUp(cleanedMessage) && !cleanedMessage.includes(existingReport.nomorLaporan)) {
-        const reply = buildExistingReportIntentMessage(existingReport.nomorLaporan);
+        const reply = await generateIntakeStepReply({
+          stage: "confirm_report_intent",
+          userMessage: cleanedMessage,
+          nomorLaporanAktif: existingReport.nomorLaporan,
+        });
 
         await db.insert(waSessions).values({
           phoneNumber: phoneNormalized,
@@ -755,7 +739,10 @@ ${KELURAHAN_CIMAHI.join(", ")}`;
         },
       });
 
-      const greetingMessage = buildGreetingMessage();
+      const greetingMessage = await generateIntakeStepReply({
+        stage: "ask_name",
+        userMessage: cleanedMessage,
+      });
       const sendResult = await sendWhatsApp(from, greetingMessage);
 
       await db.insert(waLogs).values({
