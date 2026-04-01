@@ -149,6 +149,7 @@ async function main() {
       "kelurahan" text,
       "rw" text,
       "isi_laporan" text,
+      "clarification_count" integer NOT NULL DEFAULT 0,
       "status" text NOT NULL DEFAULT 'collecting',
       "created_at" timestamp DEFAULT now(),
       "updated_at" timestamp DEFAULT now()
@@ -170,6 +171,11 @@ async function main() {
   await sql`
     ALTER TABLE "wa_logs"
     ADD COLUMN IF NOT EXISTS "sent_by" text DEFAULT 'admin'
+  `;
+
+  await sql`
+    ALTER TABLE "wa_sessions"
+    ADD COLUMN IF NOT EXISTS "clarification_count" integer NOT NULL DEFAULT 0
   `;
 
   await sql`

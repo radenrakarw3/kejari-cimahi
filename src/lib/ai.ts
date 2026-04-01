@@ -78,6 +78,13 @@ export interface CategorizeResult {
   bidangSaran: string;
 }
 
+export interface IntakeAssessment {
+  needsClarification: boolean;
+  confidence: number;
+  kategori: string;
+  reason: string;
+}
+
 export async function categorizeReport(
   isiLaporan: string
 ): Promise<CategorizeResult> {
@@ -203,7 +210,7 @@ export async function generateWebhookReply(params: {
     ? `Pengirim sudah memiliki laporan aktif${nomorLaporan ? ` dengan nomor ${nomorLaporan}` : ""}.`
     : `Ini adalah tahapan akhir intake warga dan laporan baru${nomorLaporan ? ` sudah dibuat dengan nomor ${nomorLaporan}` : ""}.`;
 
-  const prompt = `Kamu adalah admin frontdesk WhatsApp SAHATE KEJARI CIMAHI yang membalas warga seperti petugas admin yang hangat, sigap, dan menenangkan.
+  const prompt = `Kamu adalah admin frontdesk WhatsApp SAHATE KEJARI CIMAHI yang membalas warga seperti petugas admin yang hangat, sigap, dan enak diajak bicara.
 
 Konteks:
 - ${reportContext}
@@ -214,6 +221,7 @@ ${knowledgeContext}
 Aturan:
 - Jawab dalam Bahasa Indonesia.
 - Nada ramah, profesional, humanis, terasa seperti chat dengan admin sungguhan.
+- Tulis senatural mungkin, jangan terdengar seperti template robot.
 - Jangan membuat janji hasil hukum atau keputusan resmi.
 - Jika ini laporan baru, konfirmasi bahwa laporan sudah diterima dan sebut nomor laporan jika tersedia.
 - Jika ini follow-up laporan aktif, akui pesan tambahan warga dan sampaikan bahwa informasi ditambahkan ke laporan berjalan.
@@ -221,6 +229,7 @@ Aturan:
 - Jangan mengarang informasi di luar bank data admin. Jika data tidak tersedia, katakan dengan jujur bahwa admin akan membantu menindaklanjuti.
 - Jangan gunakan markdown.
 - Maksimal 500 karakter.
+- Bila cocok, gunakan ungkapan ringan yang hangat seperti "baik", "siap", "terima kasih sudah menyampaikan", atau "kami bantu cek ya", tapi jangan berlebihan.
 
 Balas hanya isi pesan final tanpa pembuka tambahan sistem.`;
 
@@ -237,6 +246,91 @@ Balas hanya isi pesan final tanpa pembuka tambahan sistem.`;
     return nomorLaporan
       ? `Terima kasih, laporan Anda sudah kami terima dengan nomor ${nomorLaporan}. Tim SAHATE Kejari Cimahi akan meninjau laporan Anda dan menghubungi Anda bila diperlukan informasi tambahan.`
       : "Terima kasih, laporan Anda sudah kami terima. Tim SAHATE Kejari Cimahi akan meninjau laporan Anda dan menghubungi Anda bila diperlukan informasi tambahan.";
+  }
+}
+
+export async function assessReportIntake(message: string): Promise<IntakeAssessment> {
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+  const prompt = `Kamu menilai apakah uraian pengaduan warga sudah cukup jelas untuk dibuatkan laporan awal.
+
+Uraian warga:
+"${message}"
+
+Aturan penilaian:
+- needsClarification = true jika isi masih terlalu umum, terlalu pendek, belum jelas peristiwanya, belum jelas masalah hukumnya, atau kategorinya masih kabur.
+- needsClarification = false jika inti masalah, kejadian, atau kebutuhan hukumnya sudah cukup dipahami untuk pencatatan awal.
+- confidence diisi 0 sampai 1.
+- kategori pilih salah satu: KORUPSI, NARKOTIKA, PIDANA_UMUM, PERDATA, KETENAGAKERJAAN, LINGKUNGAN, KONSULTASI, LAINNYA.
+- reason jelaskan singkat.
+
+Balas hanya JSON valid:
+{
+  "needsClarification": true,
+  "confidence": 0.62,
+  "kategori": "LAINNYA",
+  "reason": "uraian masih terlalu umum dan belum menjelaskan pokok kejadian"
+}`;
+
+  try {
+    const result = await model.generateContent(prompt);
+    const text = result.response.text().trim();
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error("No JSON");
+    const parsed = JSON.parse(jsonMatch[0]) as IntakeAssessment;
+    return parsed;
+  } catch {
+    const shortMessage = message.trim().length < 35;
+    return {
+      needsClarification: shortMessage,
+      confidence: shortMessage ? 0.45 : 0.7,
+      kategori: "LAINNYA",
+      reason: shortMessage
+        ? "uraian masih terlalu singkat untuk dipahami dengan baik"
+        : "penilaian otomatis tidak tersedia",
+    };
+  }
+}
+
+export async function generateClarifyingQuestion(params: {
+  nama?: string;
+  kelurahan?: string;
+  rw?: string;
+  draftMessage: string;
+  previousReason?: string;
+}): Promise<string> {
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+  const knowledgeEntries = await findRelevantKnowledge(params.draftMessage, 3);
+  const knowledgeContext = buildKnowledgeContext(knowledgeEntries);
+
+  const prompt = `Kamu adalah admin WhatsApp SAHATE KEJARI CIMAHI.
+
+Data warga sementara:
+- Nama: ${params.nama ?? "-"}
+- Kelurahan: ${params.kelurahan ?? "-"}
+- RW: ${params.rw ?? "-"}
+- Uraian warga saat ini: "${params.draftMessage}"
+- Catatan kenapa perlu diperdalam: "${params.previousReason ?? "uraian masih belum cukup jelas"}"
+
+Referensi bank data admin:
+${knowledgeContext}
+
+Tugas:
+- Buat satu balasan WhatsApp yang hangat dan sangat natural seperti admin manusia.
+- Akui dulu informasi awal warga dengan singkat.
+- Lalu gali satu atau dua detail yang paling penting agar laporan lebih jelas.
+- Jangan langsung kasih nomor laporan.
+- Jangan pakai markdown.
+- Maksimal 420 karakter.
+- Hindari daftar terlalu panjang.
+
+Balas hanya isi pesan final.`;
+
+  try {
+    const result = await model.generateContent(prompt);
+    return result.response.text().trim();
+  } catch {
+    return "Baik, terima kasih sudah menyampaikan. Supaya laporan Bapak/Ibu tercatat dengan lebih tepat, boleh dijelaskan sedikit lagi inti kejadiannya, kapan terjadi, dan siapa pihak yang terlibat atau diketahui?";
   }
 }
 

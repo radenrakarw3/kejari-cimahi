@@ -141,6 +141,7 @@ export const waSessions = pgTable("wa_sessions", {
   kelurahan: text("kelurahan"),
   rw: text("rw"),
   isiLaporan: text("isi_laporan"),
+  clarificationCount: integer("clarification_count").notNull().default(0),
   status: text("status").notNull().default("collecting"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

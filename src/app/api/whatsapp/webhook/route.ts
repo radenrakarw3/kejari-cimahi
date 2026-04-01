@@ -4,7 +4,7 @@ import { reports, waLogs, waSessions } from "@/lib/schema";
 import { normalizePhone, sendWhatsApp, buildConfirmationMessage } from "@/lib/whatsapp";
 import { broadcastSseEvent } from "@/lib/sse";
 import { generateNomorLaporan } from "@/lib/nomor-laporan";
-import { generateWebhookReply } from "@/lib/ai";
+import { assessReportIntake, generateClarifyingQuestion, generateWebhookReply } from "@/lib/ai";
 import { KELURAHAN_CIMAHI, RW_OPTIONS } from "@/lib/kelurahan";
 import { eq, and, inArray } from "drizzle-orm";
 
@@ -68,7 +68,7 @@ function buildIssueQuestion(nama: string, kelurahan: string, rw: string) {
 Kelurahan: ${kelurahan}
 RW: ${rw}
 
-Silakan ceritakan pengaduan atau kebutuhan hukum Anda dengan singkat namun jelas. Jika memungkinkan, sertakan waktu kejadian, lokasi, dan pihak yang terlibat.`;
+Silakan ceritakan pengaduan atau kebutuhan hukum Anda dengan bahasa santai juga tidak apa-apa. Kalau bisa, bantu sertakan inti kejadian, waktu, lokasi, dan pihak yang terlibat atau diketahui.`;
 }
 
 function buildResetMessage() {
@@ -210,6 +210,7 @@ export async function POST(req: NextRequest) {
           kelurahan: null,
           rw: null,
           isiLaporan: null,
+          clarificationCount: 0,
           status: "collecting",
           updatedAt: new Date(),
         },
@@ -341,6 +342,46 @@ ${KELURAHAN_CIMAHI.join(", ")}`;
       }
 
       if (activeSession.currentStep === "ask_isi_laporan") {
+        const mergedDraft = activeSession.isiLaporan
+          ? `${activeSession.isiLaporan}\n${cleanedMessage}`.trim()
+          : cleanedMessage;
+        const assessment = await assessReportIntake(mergedDraft);
+        const shouldClarify =
+          activeSession.clarificationCount < 1 &&
+          (assessment.needsClarification ||
+            assessment.confidence < 0.72 ||
+            mergedDraft.length < 45);
+
+        if (shouldClarify) {
+          const reply = await generateClarifyingQuestion({
+            nama: activeSession.nama ?? undefined,
+            kelurahan: activeSession.kelurahan ?? undefined,
+            rw: activeSession.rw ?? undefined,
+            draftMessage: mergedDraft,
+            previousReason: assessment.reason,
+          });
+
+          await db
+            .update(waSessions)
+            .set({
+              isiLaporan: mergedDraft,
+              clarificationCount: activeSession.clarificationCount + 1,
+              updatedAt: new Date(),
+            })
+            .where(eq(waSessions.id, activeSession.id));
+
+          const sendResult = await sendWhatsApp(from, reply);
+          await db.insert(waLogs).values({
+            direction: "outbound",
+            content: reply,
+            phoneNumber: phoneNormalized,
+            status: sendResult.success ? "sent" : "failed",
+            sentBy: "ai",
+          });
+
+          return NextResponse.json({ ok: true, mode: "clarify" });
+        }
+
         const nomorLaporan = await generateNomorLaporan();
         const [newReport] = await db
           .insert(reports)
@@ -350,7 +391,7 @@ ${KELURAHAN_CIMAHI.join(", ")}`;
             nomorWa: phoneNormalized,
             kelurahan: activeSession.kelurahan ?? "Belum Diisi",
             rw: activeSession.rw ?? "00",
-            isiLaporan: cleanedMessage,
+            isiLaporan: mergedDraft,
             source: "wa",
             waMessageId: messageId,
             status: "masuk",
@@ -360,14 +401,14 @@ ${KELURAHAN_CIMAHI.join(", ")}`;
         await db.insert(waLogs).values({
           reportId: newReport.id,
           direction: "inbound",
-          content: cleanedMessage,
+          content: mergedDraft,
           phoneNumber: phoneNormalized,
           status: "received",
           sentBy: "system",
         });
 
         const aiReply = await generateWebhookReply({
-          message: cleanedMessage,
+          message: mergedDraft,
           nomorLaporan: newReport.nomorLaporan,
           isExistingReport: false,
         });
@@ -393,7 +434,7 @@ ${KELURAHAN_CIMAHI.join(", ")}`;
         await db
           .update(waSessions)
           .set({
-            isiLaporan: cleanedMessage,
+            isiLaporan: mergedDraft,
             status: "completed",
             updatedAt: new Date(),
           })
@@ -482,6 +523,7 @@ ${KELURAHAN_CIMAHI.join(", ")}`;
           kelurahan: null,
           rw: null,
           isiLaporan: null,
+          clarificationCount: 0,
           status: "collecting",
           updatedAt: new Date(),
         },
