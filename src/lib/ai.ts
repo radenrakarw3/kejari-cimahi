@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { db } from "./db";
 import { aiKnowledgeEntries } from "./schema";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
@@ -13,45 +13,72 @@ interface KnowledgeMatch {
   score: number;
 }
 
-function tokenize(text: string) {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/gi, " ")
-    .split(/\s+/)
-    .filter((word) => word.length >= 3);
+async function generateEmbedding(text: string): Promise<number[]> {
+  const model = genAI.getGenerativeModel({ model: "gemini-embedding-001" });
+  const result = await model.embedContent(text);
+  return result.embedding.values;
+}
+
+export async function generateAndStoreEmbedding(entryId: number, text: string): Promise<void> {
+  const embedding = await generateEmbedding(text);
+  const vectorStr = `[${embedding.join(",")}]`;
+  await db.execute(
+    sql`UPDATE ai_knowledge_entries SET embedding = ${vectorStr}::vector WHERE id = ${entryId}`
+  );
 }
 
 async function findRelevantKnowledge(query: string, limit = 3): Promise<KnowledgeMatch[]> {
+  // Semantic search via vector similarity
+  try {
+    const queryEmbedding = await generateEmbedding(query);
+    const vectorStr = `[${queryEmbedding.join(",")}]`;
+
+    const rows = await db.execute(sql`
+      SELECT id, title, content, tags,
+             1 - (embedding <=> ${vectorStr}::vector) AS score
+      FROM ai_knowledge_entries
+      WHERE is_active = true
+        AND embedding IS NOT NULL
+      ORDER BY embedding <=> ${vectorStr}::vector
+      LIMIT ${limit}
+    `);
+
+    if (rows.rows.length > 0) {
+      return rows.rows.map((row) => ({
+        id: row.id as number,
+        title: row.title as string,
+        content: row.content as string,
+        tags: row.tags as string | null,
+        score: row.score as number,
+      }));
+    }
+  } catch {
+    // fall through to token search
+  }
+
+  // Fallback: token-based search (entries without embeddings yet)
   const entries = await db
     .select()
     .from(aiKnowledgeEntries)
     .where(eq(aiKnowledgeEntries.isActive, true))
     .orderBy(desc(aiKnowledgeEntries.updatedAt));
 
-  const queryTokens = tokenize(query);
+  const queryTokens = query
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/gi, " ")
+    .split(/\s+/)
+    .filter((w) => w.length >= 3);
 
-  const scored = entries
+  return entries
     .map((entry) => {
       const haystack = `${entry.title} ${entry.content} ${entry.tags ?? ""}`.toLowerCase();
-      let score = 0;
-
-      for (const token of queryTokens) {
-        if (haystack.includes(token)) {
-          score += 1;
-        }
-      }
-
-      if (entry.title.toLowerCase().includes(query.toLowerCase())) {
-        score += 3;
-      }
-
+      let score = queryTokens.filter((t) => haystack.includes(t)).length;
+      if (entry.title.toLowerCase().includes(query.toLowerCase())) score += 3;
       return { ...entry, score };
     })
-    .filter((entry) => entry.score > 0)
+    .filter((e) => e.score > 0)
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
-
-  return scored;
 }
 
 function buildKnowledgeContext(entries: KnowledgeMatch[]) {
@@ -76,81 +103,6 @@ export interface CategorizeResult {
   confidence: number;
   alasan: string;
   bidangSaran: string;
-}
-
-export interface IntakeAssessment {
-  needsClarification: boolean;
-  confidence: number;
-  kategori: string;
-  reason: string;
-}
-
-export interface NameAssessment {
-  isLikelyName: boolean;
-  confidence: number;
-  extractedName: string;
-  reason: string;
-}
-
-export type ConversationIntent =
-  | "info_request"
-  | "new_report"
-  | "follow_up_existing"
-  | "needs_guidance";
-
-export interface IntentAssessment {
-  intent: ConversationIntent;
-  confidence: number;
-  reason: string;
-}
-
-export async function generateGuidanceReply(params: {
-  message: string;
-  hasActiveReport?: boolean;
-  nomorLaporan?: string;
-  askForName?: boolean;
-}): Promise<string> {
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-  const knowledgeEntries = await findRelevantKnowledge(params.message, 4);
-  const knowledgeContext = buildKnowledgeContext(knowledgeEntries);
-
-  const prompt = `Kamu adalah admin frontdesk WhatsApp SAHATE KEJARI CIMAHI.
-
-Pesan warga:
-"${params.message}"
-
-Konteks:
-- Warga ${params.hasActiveReport ? "memiliki" : "tidak memiliki"} laporan aktif${params.nomorLaporan ? ` dengan nomor ${params.nomorLaporan}` : ""}.
-- ${params.askForName ? "Setelah merespons isi chat, arahkan dengan halus agar warga menyebutkan nama lengkap bila ingin lanjut buat laporan." : "Setelah merespons isi chat, beri tindak lanjut yang paling natural sesuai konteks."}
-
-Bank data admin:
-${knowledgeContext}
-
-Aturan:
-- Jawab seperti admin manusia yang hangat, tenang, dan sigap.
-- Respons dulu isi pesan warga, jangan langsung memberi instruksi mentah.
-- Jika pesan masih belum jelas, bantu arahkan dengan satu langkah kecil berikutnya.
-- Jika informasi resmi belum cukup, katakan dengan jujur admin akan bantu menindaklanjuti.
-- Jangan mengarang detail di luar bank data admin.
-- Jangan gunakan markdown.
-- Maksimal 420 karakter.
-
-Balas hanya isi pesan final.`;
-
-  try {
-    const result = await model.generateContent(prompt);
-    return result.response.text().trim();
-  } catch {
-    if (params.hasActiveReport && params.nomorLaporan) {
-      return `Baik, saya bantu ya. Nomor WhatsApp ini masih terhubung dengan laporan ${params.nomorLaporan}. Kalau Bapak/Ibu ingin menambahkan informasi untuk laporan itu, silakan lanjutkan. Kalau ingin membuat laporan baru yang terpisah, saya juga siap bantu dari awal.`;
-    }
-
-    if (params.askForName) {
-      return "Baik, saya bantu ya. Supaya kalau Bapak/Ibu ingin lanjut membuat laporan datanya bisa tercatat dengan rapi, boleh saya mulai dulu dari nama lengkapnya?";
-    }
-
-    return "Baik, saya bantu ya. Silakan ceritakan dulu kebutuhan Bapak/Ibu, nanti saya arahkan pelan-pelan supaya informasinya tepat.";
-  }
 }
 
 export async function categorizeReport(
@@ -208,109 +160,11 @@ Balas HANYA dalam format JSON valid berikut (tanpa teks lain):
   }
 }
 
-export async function classifyConversationIntent(params: {
-  message: string;
-  hasActiveReport: boolean;
-  currentStep?: string;
-}): Promise<IntentAssessment> {
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-  const { message, hasActiveReport, currentStep } = params;
-
-  const prompt = `Kamu menilai niat utama warga di chat WhatsApp layanan SAHATE Kejari Cimahi.
-
-Pesan warga:
-"${message}"
-
-Konteks:
-- Warga ${hasActiveReport ? "memiliki" : "tidak memiliki"} laporan aktif.
-- Step sesi saat ini: ${currentStep ?? "-"}
-
-Pilih SATU intent:
-- info_request: warga sedang bertanya informasi, status, prosedur, alamat, jam layanan, atau hal umum.
-- new_report: warga tampak ingin membuat laporan/pengaduan baru.
-- follow_up_existing: warga tampak menambahkan informasi untuk laporan aktif yang sudah ada.
-- needs_guidance: warga masih bingung, curhat awal, salam, atau belum cukup jelas arahnya.
-
-Balas hanya JSON valid:
-{
-  "intent": "needs_guidance",
-  "confidence": 0.82,
-  "reason": "alasan singkat"
-}`;
-
-  try {
-    const result = await model.generateContent(prompt);
-    const text = result.response.text().trim();
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error("No JSON");
-    const parsed = JSON.parse(jsonMatch[0]) as IntentAssessment;
-    return parsed;
-  } catch {
-    const lower = message.toLowerCase();
-    const infoWords = [
-      "bagaimana",
-      "gimana",
-      "apa",
-      "kenapa",
-      "kapan",
-      "dimana",
-      "alamat",
-      "jam",
-      "status",
-      "cek",
-      "tilang",
-      "syarat",
-      "prosedur",
-      "konsultasi",
-    ];
-    const newReportWords = [
-      "lapor",
-      "laporan",
-      "pengaduan",
-      "aduan",
-      "pungli",
-      "korupsi",
-      "penipuan",
-      "pencurian",
-      "penganiayaan",
-      "narkoba",
-    ];
-    const followUpWords = [
-      "tambahan",
-      "lanjutkan",
-      "laporan saya",
-      "nomor laporan",
-      "update laporan",
-    ];
-
-    if (infoWords.some((word) => lower.includes(word)) || lower.includes("?")) {
-      return { intent: "info_request", confidence: 0.7, reason: "terlihat seperti pertanyaan informasi" };
-    }
-
-    if (hasActiveReport && followUpWords.some((word) => lower.includes(word))) {
-      return { intent: "follow_up_existing", confidence: 0.72, reason: "terlihat seperti tambahan untuk laporan aktif" };
-    }
-
-    if (newReportWords.some((word) => lower.includes(word))) {
-      return { intent: "new_report", confidence: 0.68, reason: "terlihat seperti ingin membuat pengaduan baru" };
-    }
-
-    return { intent: "needs_guidance", confidence: 0.55, reason: "pesan masih butuh diarahkan lebih lanjut" };
-  }
-}
-
 export async function generateWaReply(
   kategori: string,
   isiLaporan: string,
-  style: "singkat" | "menengah" | "formal" = "menengah"
 ): Promise<string[]> {
   const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-  const styleGuide = {
-    singkat: "Sangat ringkas, maksimal 200 karakter",
-    menengah: "Jelas dan informatif, maksimal 500 karakter",
-    formal: "Formal resmi pemerintah, maksimal 800 karakter",
-  };
 
   const prompt = `Kamu adalah asisten administrasi SAHATE KEJARI CIMAHI.
 
@@ -355,340 +209,143 @@ Balas HANYA dalam format JSON:
   }
 }
 
-export async function generateWebhookReply(params: {
-  message: string;
-  nomorLaporan?: string;
-  isExistingReport: boolean;
-}): Promise<string> {
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-  const { message, nomorLaporan, isExistingReport } = params;
-  const knowledgeEntries = await findRelevantKnowledge(message);
-  const knowledgeContext = buildKnowledgeContext(knowledgeEntries);
-
-  const reportContext = isExistingReport
-    ? `Pengirim sudah memiliki laporan aktif${nomorLaporan ? ` dengan nomor ${nomorLaporan}` : ""}.`
-    : `Ini adalah tahapan akhir intake warga dan laporan baru${nomorLaporan ? ` sudah dibuat dengan nomor ${nomorLaporan}` : ""}.`;
-
-  const prompt = `Kamu adalah admin frontdesk WhatsApp SAHATE KEJARI CIMAHI yang membalas warga seperti petugas admin yang hangat, sigap, dan enak diajak bicara.
-
-Konteks:
-- ${reportContext}
-- Pesan warga: "${message}"
-- Bank data admin yang boleh dijadikan rujukan:
-${knowledgeContext}
-
-Aturan:
-- Jawab dalam Bahasa Indonesia.
-- Nada ramah, profesional, humanis, terasa seperti chat dengan admin sungguhan.
-- Tulis senatural mungkin, jangan terdengar seperti template robot.
-- Jangan membuat janji hasil hukum atau keputusan resmi.
-- Jika ini laporan baru, konfirmasi bahwa laporan sudah diterima dan sebut nomor laporan jika tersedia.
-- Jika ini follow-up laporan aktif, akui pesan tambahan warga dan sampaikan bahwa informasi ditambahkan ke laporan berjalan.
-- Jika warga tampak bertanya informasi umum, utamakan isi bank data admin di atas.
-- Jangan mengarang informasi di luar bank data admin. Jika data tidak tersedia, katakan dengan jujur bahwa admin akan membantu menindaklanjuti.
-- Jangan gunakan markdown.
-- Maksimal 500 karakter.
-- Bila cocok, gunakan ungkapan ringan yang hangat seperti "baik", "siap", "terima kasih sudah menyampaikan", atau "kami bantu cek ya", tapi jangan berlebihan.
-
-Balas hanya isi pesan final tanpa pembuka tambahan sistem.`;
-
-  try {
-    const result = await model.generateContent(prompt);
-    return result.response.text().trim();
-  } catch {
-    if (isExistingReport) {
-      return nomorLaporan
-        ? `Terima kasih, informasi tambahan Anda sudah kami catat pada laporan ${nomorLaporan}. Tim kami akan menindaklanjuti dan menghubungi Anda bila diperlukan.`
-        : "Terima kasih, informasi tambahan Anda sudah kami catat pada laporan yang sedang berjalan. Tim kami akan menindaklanjuti dan menghubungi Anda bila diperlukan.";
-    }
-
-    return nomorLaporan
-      ? `Terima kasih, laporan Anda sudah kami terima dengan nomor ${nomorLaporan}. Tim SAHATE Kejari Cimahi akan meninjau laporan Anda dan menghubungi Anda bila diperlukan informasi tambahan.`
-      : "Terima kasih, laporan Anda sudah kami terima. Tim SAHATE Kejari Cimahi akan meninjau laporan Anda dan menghubungi Anda bila diperlukan informasi tambahan.";
-  }
-}
-
-export async function assessReportIntake(message: string): Promise<IntakeAssessment> {
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-  const prompt = `Kamu menilai apakah uraian pengaduan warga sudah cukup jelas untuk dibuatkan laporan awal.
-
-Uraian warga:
-"${message}"
-
-Aturan penilaian:
-- needsClarification = true jika isi masih terlalu umum, terlalu pendek, belum jelas peristiwanya, belum jelas masalah hukumnya, atau kategorinya masih kabur.
-- needsClarification = false jika inti masalah, kejadian, atau kebutuhan hukumnya sudah cukup dipahami untuk pencatatan awal.
-- confidence diisi 0 sampai 1.
-- kategori pilih salah satu: KORUPSI, NARKOTIKA, PIDANA_UMUM, PERDATA, KETENAGAKERJAAN, LINGKUNGAN, KONSULTASI, LAINNYA.
-- reason jelaskan singkat.
-
-Balas hanya JSON valid:
-{
-  "needsClarification": true,
-  "confidence": 0.62,
-  "kategori": "LAINNYA",
-  "reason": "uraian masih terlalu umum dan belum menjelaskan pokok kejadian"
-}`;
-
-  try {
-    const result = await model.generateContent(prompt);
-    const text = result.response.text().trim();
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error("No JSON");
-    const parsed = JSON.parse(jsonMatch[0]) as IntakeAssessment;
-    return parsed;
-  } catch {
-    const shortMessage = message.trim().length < 35;
-    return {
-      needsClarification: shortMessage,
-      confidence: shortMessage ? 0.45 : 0.7,
-      kategori: "LAINNYA",
-      reason: shortMessage
-        ? "uraian masih terlalu singkat untuk dipahami dengan baik"
-        : "penilaian otomatis tidak tersedia",
-    };
-  }
-}
-
-export async function generateClarifyingQuestion(params: {
-  nama?: string;
-  kelurahan?: string;
-  rw?: string;
-  draftMessage: string;
-  previousReason?: string;
-}): Promise<string> {
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-  const knowledgeEntries = await findRelevantKnowledge(params.draftMessage, 3);
-  const knowledgeContext = buildKnowledgeContext(knowledgeEntries);
-
-  const prompt = `Kamu adalah admin WhatsApp SAHATE KEJARI CIMAHI.
-
-Data warga sementara:
-- Nama: ${params.nama ?? "-"}
-- Kelurahan: ${params.kelurahan ?? "-"}
-- RW: ${params.rw ?? "-"}
-- Uraian warga saat ini: "${params.draftMessage}"
-- Catatan kenapa perlu diperdalam: "${params.previousReason ?? "uraian masih belum cukup jelas"}"
-
-Referensi bank data admin:
-${knowledgeContext}
-
-Tugas:
-- Buat satu balasan WhatsApp yang hangat dan sangat natural seperti admin manusia.
-- Akui dulu informasi awal warga dengan singkat.
-- Lalu gali satu atau dua detail yang paling penting agar laporan lebih jelas.
-- Jangan langsung kasih nomor laporan.
-- Jangan pakai markdown.
-- Maksimal 420 karakter.
-- Hindari daftar terlalu panjang.
-
-Balas hanya isi pesan final.`;
-
-  try {
-    const result = await model.generateContent(prompt);
-    return result.response.text().trim();
-  } catch {
-    return "Baik, terima kasih sudah menyampaikan. Supaya laporan Bapak/Ibu tercatat dengan lebih tepat, boleh dijelaskan sedikit lagi inti kejadiannya, kapan terjadi, dan siapa pihak yang terlibat atau diketahui?";
-  }
-}
-
-export async function generateIntakeStepReply(params: {
-  stage:
-    | "ask_name"
-    | "ask_kelurahan"
-    | "ask_rw"
-    | "ask_issue"
-    | "confirm_report_intent"
-    | "invalid_kelurahan"
-    | "invalid_rw"
-    | "new_report_start";
-  userMessage?: string;
-  nama?: string;
-  kelurahan?: string;
-  rw?: string;
-  nomorLaporanAktif?: string;
-  optionsText?: string;
-}): Promise<string> {
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-  const query = [params.userMessage, params.optionsText, params.nomorLaporanAktif]
-    .filter(Boolean)
-    .join(" ");
-  const knowledgeEntries = await findRelevantKnowledge(query || "humanis admin whatsapp", 3);
-  const knowledgeContext = buildKnowledgeContext(knowledgeEntries);
-
-  const stageGuidance: Record<string, string> = {
-    ask_name: "Sapa warga dengan hangat dan ajak mulai dari nama lengkap terlebih dahulu.",
-    ask_kelurahan: "Akui nama warga, lalu minta kelurahan dengan ramah.",
-    ask_rw: "Akui kelurahan yang diberikan, lalu minta nomor RW dengan santai dan jelas.",
-    ask_issue: "Akui data awal warga, lalu minta inti pengaduan dengan bahasa sederhana dan menenangkan.",
-    confirm_report_intent:
-      "Jelaskan dengan natural bahwa ada laporan aktif, lalu beri dua opsi: lanjutkan laporan lama atau buat laporan baru.",
-    invalid_kelurahan:
-      "Sampaikan dengan lembut bahwa kelurahan belum terbaca, lalu minta warga memilih salah satu opsi yang tersedia.",
-    invalid_rw:
-      "Sampaikan dengan lembut bahwa RW belum terbaca, lalu minta balas dengan format RW yang sederhana.",
-    new_report_start:
-      "Konfirmasi bahwa admin siap membantu membuat laporan baru terpisah, lalu mulai lagi dari nama lengkap.",
+export interface ConversationResult {
+  reply: string;
+  action: "none" | "update_fields" | "create_report" | "reset";
+  fields: {
+    nama?: string | null;
+    kelurahan?: string | null;
+    rw?: string | null;
+    isiLaporan?: string | null;
   };
+}
 
-  const prompt = `Kamu adalah admin WhatsApp SAHATE KEJARI CIMAHI.
+export async function processConversation(params: {
+  message: string;
+  history: Array<{ role: "user" | "admin"; content: string }>;
+  collectedFields: {
+    nama: string | null;
+    kelurahan: string | null;
+    rw: string | null;
+    isiLaporan: string | null;
+  };
+  userReports: Array<{
+    nomorLaporan: string;
+    status: string;
+    isiLaporan: string;
+    createdAt: Date | null;
+  }>;
+  validKelurahan: string[];
+  validRw: string[];
+}): Promise<ConversationResult> {
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-Konteks warga:
-- Pesan terakhir warga: "${params.userMessage ?? "-"}"
-- Nama: ${params.nama ?? "-"}
-- Kelurahan: ${params.kelurahan ?? "-"}
-- RW: ${params.rw ?? "-"}
-- Nomor laporan aktif: ${params.nomorLaporanAktif ?? "-"}
-- Opsi tambahan: ${params.optionsText ?? "-"}
+  const { message, history, collectedFields, userReports, validKelurahan, validRw } = params;
 
-Referensi gaya dari bank data admin:
+  const knowledgeEntries = await findRelevantKnowledge(message, 4);
+  const knowledgeContext = buildKnowledgeContext(knowledgeEntries);
+
+  const historyText =
+    history.length === 0
+      ? "(belum ada riwayat)"
+      : history
+          .map((h) => `[${h.role === "user" ? "Warga" : "Admin"}]: ${h.content}`)
+          .join("\n");
+
+  const reportsText =
+    userReports.length === 0
+      ? "(tidak ada laporan)"
+      : userReports
+          .map(
+            (r) =>
+              `- Nomor: ${r.nomorLaporan} | Status: ${r.status} | Dibuat: ${r.createdAt ? r.createdAt.toLocaleDateString("id-ID") : "-"} | Isi: ${r.isiLaporan.slice(0, 120)}${r.isiLaporan.length > 120 ? "..." : ""}`
+          )
+          .join("\n");
+
+  const prompt = `Kamu adalah staf admin WhatsApp SAHATE Kejaksaan Negeri Cimahi. Nama layanan: SAHATE Kejari Cimahi.
+
+Balas seperti manusia nyata—hangat, natural, tidak kaku, tidak terasa seperti template bot. Jangan pernah akui kamu AI atau bot.
+
+RIWAYAT CHAT (dari lama ke terbaru):
+${historyText}
+
+PESAN BARU DARI WARGA:
+"${message}"
+
+DATA LAPORAN WARGA INI DI SISTEM:
+${reportsText}
+
+BANK DATA ADMIN (informasi resmi yang boleh disampaikan):
 ${knowledgeContext}
 
-Tugas:
-- Buat satu balasan WhatsApp yang terasa seperti admin manusia, bukan template robot.
-- Struktur balasan harus terasa seperti: merespons isi chat warga terlebih dahulu, lalu tindak lanjut berikutnya.
-- Jangan sekadar memberi instruksi; beri pengantar yang hangat dan natural.
-- ${stageGuidance[params.stage]}
-- Jangan gunakan markdown.
-- Maksimal 420 karakter.
-- Jangan terlalu formal, jangan terlalu santai.
+DATA YANG SUDAH TERKUMPUL UNTUK LAPORAN:
+- Nama: ${collectedFields.nama ?? "belum ada"}
+- Kelurahan: ${collectedFields.kelurahan ?? "belum ada"}
+- RW: ${collectedFields.rw ?? "belum ada"}
+- Isi laporan: ${collectedFields.isiLaporan ?? "belum ada"}
 
-Balas hanya isi pesan final.`;
+KELURAHAN YANG VALID:
+${validKelurahan.join(", ")}
 
-  try {
-    const result = await model.generateContent(prompt);
-    return result.response.text().trim();
-  } catch {
-    switch (params.stage) {
-      case "ask_kelurahan":
-        return `Baik, ${params.nama ?? "Bapak/Ibu"}. Terima kasih ya, datanya sudah saya terima. Supaya lanjutnya lebih rapi, boleh dibantu tulis kelurahan domisili atau lokasi kejadiannya?`;
-      case "ask_rw":
-        return `Siap, kelurahan ${params.kelurahan ?? "tersebut"} sudah saya catat. Sekarang boleh dibantu informasikan nomor RW-nya, misalnya 01 atau 12?`;
-      case "ask_issue":
-        return `Baik, data awalnya sudah masuk. Sekarang Bapak/Ibu boleh ceritakan inti pengaduan atau kebutuhan hukumnya ya, santai saja, yang penting pokok kejadiannya bisa saya pahami.`;
-      case "confirm_report_intent":
-        return `Baik, saya bantu jelaskan dulu ya. Nomor WhatsApp ini masih terhubung dengan laporan aktif ${params.nomorLaporanAktif ?? ""}. Kalau ini tambahan untuk laporan itu, balas lanjutkan. Kalau mau buat laporan baru yang terpisah, balas laporan baru.`;
-      case "invalid_kelurahan":
-        return `Baik, saya bantu pelan-pelan ya. Nama kelurahannya masih belum terbaca dengan pas. Boleh pilih salah satu kelurahan ini: ${params.optionsText ?? ""}`;
-      case "invalid_rw":
-        return "Baik, saya bantu lanjut ya. Nomor RW-nya masih belum terbaca. Boleh dibalas lagi dengan format sederhana seperti 01, 02, atau 12?";
-      case "new_report_start":
-        return "Siap, kita buat laporan baru yang terpisah ya supaya tidak tertukar dengan laporan sebelumnya. Boleh saya mulai dulu dari nama lengkap Bapak/Ibu?";
-      default:
-        return "Baik, saya bantu ya. Boleh diinformasikan nama lengkap Bapak/Ibu terlebih dahulu?";
-    }
+NOMOR RW YANG VALID (format 2 digit):
+${validRw.map((r) => "RW " + r).join(", ")}
+
+INSTRUKSI:
+1. Balas dengan natural—seperti admin manusia yang hangat dan sigap. Jangan terdengar seperti template atau bot.
+2. Jawab pertanyaan warga dari data laporan mereka atau bank data admin. Jangan mengarang.
+3. Jika warga ingin melapor, kumpulkan 4 data ini secara natural mengikuti alur percakapan: nama lengkap, kelurahan, nomor RW, dan isi/inti laporan. Tidak harus berurutan kaku.
+4. Jika pesan ini mengandung info baru (nama/kelurahan/rw/isi laporan), masukkan ke fields.
+5. Kelurahan HARUS dari daftar valid. Jika tidak cocok, tanyakan pelan-pelan dengan opsi yang tersedia.
+6. RW format 2 digit (01-14). Jika tidak valid, minta balas ulang.
+7. Jika semua 4 data sudah lengkap (dari riwayat + pesan ini), set action = "create_report".
+8. Jangan pernah bilang kamu AI, bot, atau sistem otomatis.
+9. Jangan gunakan markdown (* _ # **).
+10. Maksimal 380 karakter untuk reply.
+11. Jika warga minta batal/reset/mulai ulang, set action = "reset".
+12. Fields: isi hanya dengan nilai BARU dari pesan ini saja. null jika tidak ada info baru.
+
+Balas HANYA dalam format JSON valid ini (tidak ada teks lain di luar JSON):
+{
+  "reply": "...",
+  "action": "none",
+  "fields": {
+    "nama": null,
+    "kelurahan": null,
+    "rw": null,
+    "isiLaporan": null
   }
 }
 
-export async function assessNameInput(message: string): Promise<NameAssessment> {
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-  const prompt = `Kamu menilai apakah pesan warga kemungkinan adalah nama lengkap atau panggilan nama yang layak dipakai untuk administrasi awal.
-
-Pesan warga:
-"${message}"
-
-Aturan:
-- isLikelyName = true jika pesan dominan berisi nama orang, misalnya "Budi", "Siti Aminah", "Andi Saputra".
-- isLikelyName = false jika pesan lebih mirip pertanyaan, curhat, salam, keluhan, kalimat panjang, atau jawaban yang bukan nama.
-- extractedName berisi nama yang dibersihkan jika memang kemungkinan nama. Jika bukan nama, isi string kosong.
-- confidence diisi 0 sampai 1.
-- reason jelaskan singkat.
-
-Balas hanya JSON valid:
-{
-  "isLikelyName": true,
-  "confidence": 0.93,
-  "extractedName": "Siti Aminah",
-  "reason": "pesan dominan berisi nama orang"
-}`;
+action pilihan: "none", "update_fields", "create_report", "reset"`;
 
   try {
     const result = await model.generateContent(prompt);
     const text = result.response.text().trim();
     const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error("No JSON");
-    const parsed = JSON.parse(jsonMatch[0]) as NameAssessment;
+    if (!jsonMatch) throw new Error("No JSON in response");
+
+    const parsed = JSON.parse(jsonMatch[0]) as ConversationResult;
     return parsed;
   } catch {
-    const cleaned = message
-      .replace(/[^a-zA-Z\s'.-]/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-    const words = cleaned.split(" ").filter(Boolean);
-    const lower = message.toLowerCase();
-    const blockedWords = [
-      "saya",
-      "aku",
-      "kami",
-      "mau",
-      "ingin",
-      "lapor",
-      "laporan",
-      "pengaduan",
-      "aduan",
-      "tolong",
-      "bantu",
-      "admin",
-      "halo",
-      "hai",
-      "selamat",
-      "kenapa",
-      "bagaimana",
-      "gimana",
-      "kapan",
-      "dimana",
-      "status",
-      "cek",
-      "takut",
-      "bingung",
-      "mohon",
-      "saya mau",
-    ];
-    const likelyName =
-      cleaned.length >= 3 &&
-      cleaned.length <= 40 &&
-      words.length >= 1 &&
-      words.length <= 3 &&
-      !/[?0-9]/.test(message) &&
-      !blockedWords.some((word) => lower.includes(word)) &&
-      !/\b(di|ke|dari|untuk|karena)\b/i.test(cleaned);
+    // Fallback: cek field mana yang belum ada, tanya yang pertama belum ada
+    const missingField = !collectedFields.nama
+      ? "nama lengkap"
+      : !collectedFields.kelurahan
+        ? "kelurahan"
+        : !collectedFields.rw
+          ? "nomor RW"
+          : !collectedFields.isiLaporan
+            ? "inti laporan atau pengaduan"
+            : null;
+
+    const fallbackReply = missingField
+      ? `Terima kasih sudah menghubungi SAHATE Kejari Cimahi. Boleh saya bantu catat ${missingField} Bapak/Ibu terlebih dahulu?`
+      : "Terima kasih sudah menghubungi SAHATE Kejari Cimahi. Ada yang bisa saya bantu?";
 
     return {
-      isLikelyName: likelyName,
-      confidence: likelyName ? 0.7 : 0.35,
-      extractedName: likelyName ? cleaned : "",
-      reason: likelyName
-        ? "pesan terlihat seperti nama singkat"
-        : "pesan lebih mirip kalimat biasa daripada nama",
+      reply: fallbackReply,
+      action: "none",
+      fields: {},
     };
-  }
-}
-
-export async function answerLegalQuestion(question: string): Promise<string> {
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-  const knowledgeEntries = await findRelevantKnowledge(question, 4);
-  const knowledgeContext = buildKnowledgeContext(knowledgeEntries);
-
-  const prompt = `Kamu adalah asisten informasi SAHATE KEJARI CIMAHI.
-
-Bank data admin yang boleh dijadikan rujukan:
-${knowledgeContext}
-
-Pertanyaan: "${question}"
-
-Aturan:
-- Jawab dengan singkat, jelas, humanis, dan dalam Bahasa Indonesia.
-- Utamakan hanya informasi dari bank data admin.
-- Jika bank data tidak cukup, katakan dengan jujur bahwa admin akan membantu memberi informasi resmi lebih lanjut.
-- Jangan mengarang detail.
-- Maksimal 350 karakter.`;
-
-  try {
-    const result = await model.generateContent(prompt);
-    return result.response.text().trim();
-  } catch {
-    return "Untuk informasi lebih lanjut, silakan hubungi atau datang langsung ke SAHATE Kejari Cimahi pada hari kerja Senin-Jumat, pukul 07:30-16:00 WIB.";
   }
 }

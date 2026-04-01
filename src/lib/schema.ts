@@ -5,7 +5,22 @@ import {
   integer,
   timestamp,
   boolean,
+  customType,
 } from "drizzle-orm/pg-core";
+
+const embeddingVector = customType<{ data: number[]; driverData: string }>({
+  dataType() {
+    return "vector(3072)";
+  },
+  toDriver(value: number[]) {
+    return `[${value.join(",")}]`;
+  },
+  fromDriver(value: string) {
+    return typeof value === "string"
+      ? value.slice(1, -1).split(",").map(Number)
+      : (value as unknown as number[]);
+  },
+});
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -154,6 +169,7 @@ export const aiKnowledgeEntries = pgTable("ai_knowledge_entries", {
   content: text("content").notNull(),
   tags: text("tags"),
   isActive: boolean("is_active").notNull().default(true),
+  embedding: embeddingVector("embedding"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

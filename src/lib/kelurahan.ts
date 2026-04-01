@@ -15,8 +15,7 @@ export const KELURAHAN_CIMAHI = [
   "Setiamanah",
   // Cimahi Utara
   "Cipageran",
-  "Citeureup",
-  "Gununghalu (Pasirkaliki)",
+  "Citeureup",,
   "Pasirkaliki",
 ] as const;
 

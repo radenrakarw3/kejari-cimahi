@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { aiKnowledgeEntries } from "@/lib/schema";
 import { desc, eq } from "drizzle-orm";
 import { z } from "zod";
+import { generateAndStoreEmbedding } from "@/lib/ai";
 
 const knowledgeSchema = z.object({
   title: z.string().min(3, "Judul minimal 3 karakter").max(120),
@@ -55,6 +56,9 @@ export async function POST(req: NextRequest) {
       })
       .returning();
 
+    const embeddingText = [parsed.title, parsed.content, parsed.tags].filter(Boolean).join(" ");
+    generateAndStoreEmbedding(entry.id, embeddingText).catch(() => {});
+
     return NextResponse.json({ data: entry }, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -92,6 +96,9 @@ export async function PATCH(req: NextRequest) {
       })
       .where(eq(aiKnowledgeEntries.id, parsed.id))
       .returning();
+
+    const embeddingText = [parsed.title, parsed.content, parsed.tags].filter(Boolean).join(" ");
+    generateAndStoreEmbedding(entry.id, embeddingText).catch(() => {});
 
     return NextResponse.json({ data: entry });
   } catch (error) {

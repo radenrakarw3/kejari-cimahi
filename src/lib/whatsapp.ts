@@ -52,23 +52,15 @@ export function buildConfirmationMessage(
   nomorLaporan: string,
   surveyUrl?: string
 ): string {
-  return `Assalamualaikum Wr. Wb.
+  const parts = [
+    `Baik ${nama}, laporan sudah kami terima dengan nomor ${nomorLaporan}.`,
+    ``,
+    `Catat nomornya ya, biar bisa dipantau perkembangannya. Tim akan segera tindaklanjuti dan akan menghubungi kembali kalau ada yang perlu dikonfirmasi.`,
+  ];
 
-Halo ${nama},
+  if (surveyUrl) {
+    parts.push(``, `Kalau berkenan, ada survei singkat buat perbaikan layanan kami:`, surveyUrl);
+  }
 
-Laporan Anda telah kami terima melalui SAHATE KEJARI CIMAHI dengan nomor:
-
-*${nomorLaporan}*
-
-Simpan nomor ini untuk memantau status laporan Anda.
-
-Kami akan segera memproses laporan Anda dan menghubungi kembali jika diperlukan informasi tambahan.
-
-SAHATE adalah Sistem Akses Hukum Terpadu dan Elektronik Kejaksaan Negeri Cimahi.
-
-Terima kasih telah mempercayakan layanan hukum Anda kepada SAHATE Kejari Cimahi.
-
-${surveyUrl ? `Link survey resmi layanan:\n${surveyUrl}\n` : ""}
-
-Wassalamualaikum Wr. Wb.`;
+  return parts.join("\n");
 }
