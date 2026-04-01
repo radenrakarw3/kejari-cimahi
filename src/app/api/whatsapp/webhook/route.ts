@@ -149,10 +149,14 @@ export async function POST(req: NextRequest) {
       process.env.BETTER_AUTH_URL ??
       process.env.NEXT_PUBLIC_APP_URL ??
       "http://localhost:3000";
+    const reportFormUrl =
+      process.env.WHATSAPP_REPORT_FORM_URL ??
+      "https://kejari-cimahi-production.up.railway.app/lapor";
     const answer = await answerWhatsAppFromKnowledge({
       message: cleanedMessage,
       history,
       appUrl,
+      reportFormUrl,
     });
 
     await sendAndLogMessage({

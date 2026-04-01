@@ -116,6 +116,42 @@ const entries = [
     content:
       "Jika warga ingin menyampaikan dugaan korupsi atau penyalahgunaan anggaran, jelaskan dengan hati-hati bahwa laporan akan lebih mudah ditindaklanjuti bila disertai informasi yang jelas, seperti kronologi, pihak yang diduga terlibat, waktu dan lokasi kejadian, dokumen pendukung, foto, atau bukti transaksi bila ada. Sampaikan secara sopan bahwa warga tidak perlu merasa harus langsung memiliki bukti yang sempurna, namun informasi awal yang runtut dan dapat dipertanggungjawabkan sangat membantu proses penelaahan. Arahkan warga menggunakan kanal pelaporan resmi agar penyampaian informasinya lebih aman dan tertata.",
   },
+  {
+    title: "Profil singkat Kejaksaan Negeri Cimahi",
+    tags: "kejari cimahi, profil, alamat, kontak, kejaksaan negeri cimahi",
+    content:
+      "Jika warga menanyakan profil dasar Kejaksaan Negeri Cimahi, jelaskan bahwa satuan kerja ini merupakan bagian dari Kejaksaan Republik Indonesia di tingkat kejaksaan negeri. Berdasarkan informasi yang tercantum pada website resmi Kejari Cimahi yang diakses pada 2 April 2026, alamat kantornya berada di Jalan Sangkuriang No. 103, Cimahi, dengan nomor telepon 022-6626704. Jika warga membutuhkan informasi administratif lebih lanjut, arahkan untuk mengecek menu Kontak atau website resmi Kejari Cimahi agar memperoleh informasi terbaru.",
+  },
+  {
+    title: "Kepala Kejaksaan Negeri Cimahi",
+    tags: "kepala kejari cimahi, pejabat struktural, banu laksmana, profil pimpinan",
+    content:
+      "Jika warga bertanya siapa Kepala Kejaksaan Negeri Cimahi, rujuk pada halaman Pejabat Struktural di website resmi Kejari Cimahi. Berdasarkan halaman resmi yang diakses pada 2 April 2026, nama yang tercantum sebagai Kepala Kejaksaan Negeri Cimahi adalah Banu Laksmana, S.H., LL.M. Jelaskan dengan kalimat yang lentur, misalnya bahwa informasi pejabat dapat berubah sewaktu-waktu dan warga bisa melihat halaman resmi tersebut untuk memastikan data paling mutakhir.",
+  },
+  {
+    title: "Menu layanan resmi di website Kejari Cimahi",
+    tags: "website resmi, layanan kejari cimahi, tilang, jadwal sidang, pengaduan",
+    content:
+      "Website resmi Kejari Cimahi memuat beberapa menu layanan yang dapat dijadikan rujukan awal bagi warga, antara lain Pengumuman Tilang, Daftar Tilang Online, Informasi Jadwal Sidang, Info Lelang, Pusat Pengaduan, dan SOP Pengambilan Barang Bukti. Jika warga menanyakan harus membuka menu yang mana, arahkan sesuai kebutuhannya. Untuk kebutuhan administratif, layanan di website resmi sebaiknya disebutkan lebih dulu sebelum memberi arahan tambahan lain.",
+  },
+  {
+    title: "Pusat pengaduan resmi Kejari Cimahi",
+    tags: "pusat pengaduan, e-lapdu, whistle blowing system, wbs, kejari cimahi",
+    content:
+      "Pada website resmi Kejari Cimahi terdapat menu Pusat Pengaduan yang memuat Form E-LapDu dan Form Pengaduan WBS atau Whistle Blowing System. Jika warga ingin menyampaikan pengaduan, jelaskan bahwa kanal resmi tersebut dapat dipakai untuk memasukkan identitas, pokok masalah, dan uraian laporan secara tertulis. Gunakan bahasa yang menenangkan agar warga merasa aman saat menyampaikan informasi, dan tekankan agar data yang diisi jelas, jujur, serta dapat dipertanggungjawabkan.",
+  },
+  {
+    title: "Bidang layanan yang ada di Kejari Cimahi",
+    tags: "bidang kejari cimahi, intelijen, pidana umum, pidana khusus, datun, pembinaan",
+    content:
+      "Jika warga menanyakan bidang apa saja yang ada di Kejari Cimahi, jelaskan bahwa website resminya menampilkan beberapa bidang utama seperti Pembinaan, Intelijen, Pidana Umum, Pidana Khusus, Perdata dan Tata Usaha Negara, serta Pengelolaan Barang Bukti. Penjelasan ini bisa dipakai untuk membantu warga memahami arah pertanyaannya. Misalnya, konsultasi hukum perdata dapat diarahkan ke ranah Perdata dan TUN, sedangkan penjelasan umum perkara pidana dapat dikaitkan dengan Pidana Umum atau Pidana Khusus sesuai konteksnya.",
+  },
+  {
+    title: "Peran umum Kejaksaan menurut profil resmi Kejari Cimahi",
+    tags: "peran kejaksaan, penuntutan, dominus litis, jaksa pengacara negara",
+    content:
+      "Berdasarkan penjelasan profil pada website resmi Kejari Cimahi, Kejaksaan adalah lembaga negara yang melaksanakan kekuasaan negara terutama di bidang penuntutan. Dalam penjelasan itu juga diterangkan bahwa Kejaksaan memiliki peran penting sebagai pengendali proses perkara pidana atau dominus litis, pelaksana putusan pidana, serta memiliki kewenangan di bidang Perdata dan Tata Usaha Negara sebagai Jaksa Pengacara Negara. Jika warga bertanya apa sebenarnya fungsi kejaksaan, jelaskan inti ini dengan bahasa sederhana dan tidak terlalu teknis.",
+  },
 ];
 
 async function main() {

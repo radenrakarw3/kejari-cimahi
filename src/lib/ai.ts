@@ -340,13 +340,15 @@ export async function answerWhatsAppFromKnowledge(params: {
   message: string;
   history: Array<{ role: "user" | "admin"; content: string }>;
   appUrl?: string;
+  reportFormUrl?: string;
 }): Promise<{
   reply: string;
   usedKnowledge: boolean;
   routeToReportForm: boolean;
 }> {
-  const { message, history, appUrl } = params;
+  const { message, history, appUrl, reportFormUrl } = params;
   const normalizedAppUrl = (appUrl ?? "http://localhost:3000").replace(/\/$/, "");
+  const normalizedReportFormUrl = (reportFormUrl ?? `${normalizedAppUrl}/lapor`).replace(/\/$/, "");
   const person = inferPersonContext(history, message);
   const emotionalContext = detectEmotionalContext(message);
   const languageGuide = buildLanguageVariationGuide(message);
@@ -354,7 +356,7 @@ export async function answerWhatsAppFromKnowledge(params: {
 
   if (isReportIntent(message)) {
     return {
-      reply: `${emotionalContext.needsComfort ? `${emotionalContext.comfortLine} ` : ""}Tentu ${person.preferredGreeting}, kalau mau buat laporan resmi bisa langsung isi lewat link ini ya: ${normalizedAppUrl}/lapor. Setelah dikirim, tim kami akan menindaklanjuti sesuai alur yang berlaku.`,
+      reply: `${emotionalContext.needsComfort ? `${emotionalContext.comfortLine} ` : ""}Tentu ${person.preferredGreeting}, kalau mau buat laporan resmi bisa langsung isi lewat link ini ya: ${normalizedReportFormUrl}. Setelah dikirim, tim kami akan menindaklanjuti sesuai alur yang berlaku.`,
       usedKnowledge: false,
       routeToReportForm: true,
     };
@@ -372,7 +374,7 @@ export async function answerWhatsAppFromKnowledge(params: {
     return {
       reply:
         `${emotionalContext.needsComfort ? `${emotionalContext.comfortLine} ` : ""}Terima kasih ${person.preferredGreeting}, pesan Anda sudah kami terima. Untuk memastikan informasinya tepat, pertanyaan ini akan kami bantu cek lebih lanjut oleh admin. ${languageGuide.closing} Jika ingin membuat laporan resmi, silakan isi lewat link ini ya: ` +
-        `${normalizedAppUrl}/lapor`,
+        `${normalizedReportFormUrl}`,
       usedKnowledge: false,
       routeToReportForm: false,
     };
@@ -396,7 +398,7 @@ ATURAN UTAMA:
 3. Jika warga sedang menghadapi persoalan, awali dengan empati dan rasa prihatin yang natural sebelum masuk ke informasi inti.
 4. Tujuan utama balasan adalah membantu menenangkan hati dan pikiran warga, tanpa terkesan berlebihan atau dibuat-buat.
 5. Jika referensi tidak cukup untuk menjawab lengkap, sampaikan dengan sopan bahwa admin akan membantu mengecek lebih lanjut.
-6. Jika warga terlihat ingin tahu prosedur laporan, arahkan dengan lembut ke link ini: ${normalizedAppUrl}/lapor
+6. Jika warga terlihat ingin tahu prosedur laporan, arahkan dengan lembut ke link ini: ${normalizedReportFormUrl}
 7. Maksimal 500 karakter.
 8. Tetap gunakan sapaan yang sopan seperti "Bapak", "Ibu", atau "Bapak/Ibu".
 9. Jika nama warga sudah diketahui, sebut namanya secara natural agar terasa personal.
