@@ -9,10 +9,40 @@ import { KELURAHAN_CIMAHI, RW_OPTIONS } from "@/lib/kelurahan";
 import { eq, and, inArray } from "drizzle-orm";
 
 const CANCEL_KEYWORDS = ["batal", "cancel", "ulang", "reset", "mulai lagi"];
+const NEW_REPORT_KEYWORDS = [
+  "laporan baru",
+  "pengaduan baru",
+  "aduan baru",
+  "buat laporan",
+  "buat pengaduan",
+  "mau lapor",
+  "ingin lapor",
+  "lapor baru",
+];
+const FOLLOW_UP_KEYWORDS = [
+  "lanjutkan",
+  "lanjut",
+  "tambahan",
+  "tambahan laporan",
+  "laporan lama",
+  "untuk laporan itu",
+  "ya",
+  "iya",
+];
 
 function isCancelMessage(message: string) {
   const normalized = message.trim().toLowerCase();
   return CANCEL_KEYWORDS.includes(normalized);
+}
+
+function wantsNewReport(message: string) {
+  const normalized = message.trim().toLowerCase();
+  return NEW_REPORT_KEYWORDS.some((keyword) => normalized.includes(keyword));
+}
+
+function wantsFollowUp(message: string) {
+  const normalized = message.trim().toLowerCase();
+  return FOLLOW_UP_KEYWORDS.some((keyword) => normalized === keyword || normalized.includes(keyword));
 }
 
 function normalizeKelurahanInput(value: string) {
@@ -75,6 +105,23 @@ function buildResetMessage() {
   return `Baik, proses pengaduan WhatsApp telah kami reset.
 
 Mari kita mulai lagi dengan tenang. Silakan kirim nama lengkap Anda.`;
+}
+
+function buildNewReportStartMessage() {
+  return `Siap, kita buat laporan baru yang terpisah ya.
+
+Agar datanya rapi dan tidak tertukar dengan laporan sebelumnya, saya bantu catat dari awal.
+
+Boleh diinformasikan nama lengkap Anda terlebih dahulu?`;
+}
+
+function buildExistingReportIntentMessage(nomorLaporan: string) {
+  return `Baik, saat ini nomor WhatsApp Bapak/Ibu masih terhubung dengan laporan aktif ${nomorLaporan}.
+
+Kalau pesan ini adalah tambahan untuk laporan tersebut, balas: lanjutkan.
+Kalau ingin membuat laporan baru yang terpisah, balas: laporan baru.
+
+Saya bantu arahkan pelan-pelan ya agar tidak tertukar.`;
 }
 
 function getWebhookSecret(req: NextRequest, body?: unknown) {
@@ -220,6 +267,122 @@ export async function POST(req: NextRequest) {
     }
 
     if (activeSession) {
+      if (activeSession.currentStep === "confirm_report_intent") {
+        const existingReports = await db
+          .select()
+          .from(reports)
+          .where(
+            and(
+              eq(reports.nomorWa, phoneNormalized),
+              inArray(reports.status, ["masuk", "diproses"])
+            )
+          )
+          .limit(1);
+
+        const existingReport = existingReports[0];
+
+        if (wantsNewReport(cleanedMessage)) {
+          const reply = buildNewReportStartMessage();
+
+          await db
+            .update(waSessions)
+            .set({
+              currentStep: "ask_name",
+              nama: null,
+              kelurahan: null,
+              rw: null,
+              isiLaporan: null,
+              clarificationCount: 0,
+              updatedAt: new Date(),
+            })
+            .where(eq(waSessions.id, activeSession.id));
+
+          const sendResult = await sendWhatsApp(from, reply);
+          await db.insert(waLogs).values({
+            direction: "outbound",
+            content: reply,
+            phoneNumber: phoneNormalized,
+            status: sendResult.success ? "sent" : "failed",
+            sentBy: "system",
+          });
+
+          return NextResponse.json({ ok: true, mode: "new-report" });
+        }
+
+        if (existingReport) {
+          const pendingMessage = activeSession.isiLaporan?.trim();
+          const followUpContent = wantsFollowUp(cleanedMessage)
+            ? pendingMessage || cleanedMessage
+            : [pendingMessage, cleanedMessage].filter(Boolean).join("\n");
+
+          await db.insert(waLogs).values({
+            reportId: existingReport.id,
+            direction: "inbound",
+            content: followUpContent,
+            phoneNumber: phoneNormalized,
+            status: "received",
+            sentBy: "system",
+          });
+
+          const aiReply = await generateWebhookReply({
+            message: followUpContent,
+            nomorLaporan: existingReport.nomorLaporan,
+            isExistingReport: true,
+          });
+
+          const sendResult = await sendWhatsApp(from, aiReply);
+          await db.insert(waLogs).values({
+            reportId: existingReport.id,
+            direction: "outbound",
+            content: aiReply,
+            phoneNumber: phoneNormalized,
+            status: sendResult.success ? "sent" : "failed",
+            sentBy: "ai",
+          });
+
+          await db
+            .update(waSessions)
+            .set({
+              status: "completed",
+              updatedAt: new Date(),
+            })
+            .where(eq(waSessions.id, activeSession.id));
+
+          broadcastSseEvent({
+            type: "new_wa_message",
+            reportId: existingReport.id,
+            message: followUpContent,
+          });
+
+          return NextResponse.json({ ok: true, mode: "follow-up" });
+        }
+
+        await db
+          .update(waSessions)
+          .set({
+            currentStep: "ask_name",
+            nama: null,
+            kelurahan: null,
+            rw: null,
+            isiLaporan: null,
+            clarificationCount: 0,
+            updatedAt: new Date(),
+          })
+          .where(eq(waSessions.id, activeSession.id));
+
+        const reply = buildNewReportStartMessage();
+        const sendResult = await sendWhatsApp(from, reply);
+        await db.insert(waLogs).values({
+          direction: "outbound",
+          content: reply,
+          phoneNumber: phoneNormalized,
+          status: sendResult.success ? "sent" : "failed",
+          sentBy: "system",
+        });
+
+        return NextResponse.json({ ok: true, mode: "restart-intake" });
+      }
+
       await db.insert(waLogs).values({
         direction: "inbound",
         content: cleanedMessage,
@@ -469,6 +632,69 @@ ${KELURAHAN_CIMAHI.join(", ")}`;
 
     if (existingReports.length > 0) {
       const existingReport = existingReports[0];
+
+      if (wantsNewReport(cleanedMessage)) {
+        await db.insert(waSessions).values({
+          phoneNumber: phoneNormalized,
+          currentStep: "ask_name",
+          status: "collecting",
+        }).onConflictDoUpdate({
+          target: waSessions.phoneNumber,
+          set: {
+            currentStep: "ask_name",
+            nama: null,
+            kelurahan: null,
+            rw: null,
+            isiLaporan: null,
+            clarificationCount: 0,
+            status: "collecting",
+            updatedAt: new Date(),
+          },
+        });
+
+        const reply = buildNewReportStartMessage();
+        const sendResult = await sendWhatsApp(from, reply);
+        await db.insert(waLogs).values({
+          direction: "outbound",
+          content: reply,
+          phoneNumber: phoneNormalized,
+          status: sendResult.success ? "sent" : "failed",
+          sentBy: "system",
+        });
+
+        return NextResponse.json({ ok: true, mode: "new-report" });
+      }
+
+      if (!wantsFollowUp(cleanedMessage) && !cleanedMessage.includes(existingReport.nomorLaporan)) {
+        const reply = buildExistingReportIntentMessage(existingReport.nomorLaporan);
+
+        await db.insert(waSessions).values({
+          phoneNumber: phoneNormalized,
+          currentStep: "confirm_report_intent",
+          isiLaporan: cleanedMessage,
+          status: "collecting",
+        }).onConflictDoUpdate({
+          target: waSessions.phoneNumber,
+          set: {
+            currentStep: "confirm_report_intent",
+            isiLaporan: cleanedMessage,
+            clarificationCount: 0,
+            status: "collecting",
+            updatedAt: new Date(),
+          },
+        });
+
+        const sendResult = await sendWhatsApp(from, reply);
+        await db.insert(waLogs).values({
+          direction: "outbound",
+          content: reply,
+          phoneNumber: phoneNormalized,
+          status: sendResult.success ? "sent" : "failed",
+          sentBy: "system",
+        });
+
+        return NextResponse.json({ ok: true, mode: "confirm-intent" });
+      }
 
       // Log as incoming message on existing report
       await db.insert(waLogs).values({
