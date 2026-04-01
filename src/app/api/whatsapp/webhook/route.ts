@@ -5,8 +5,11 @@ import { normalizePhone, sendWhatsApp, buildConfirmationMessage } from "@/lib/wh
 import { broadcastSseEvent } from "@/lib/sse";
 import { generateNomorLaporan } from "@/lib/nomor-laporan";
 import {
+  answerLegalQuestion,
   assessReportIntake,
   assessNameInput,
+  classifyConversationIntent,
+  generateGuidanceReply,
   generateClarifyingQuestion,
   generateIntakeStepReply,
   generateWebhookReply,
@@ -32,8 +35,6 @@ const FOLLOW_UP_KEYWORDS = [
   "tambahan laporan",
   "laporan lama",
   "untuk laporan itu",
-  "ya",
-  "iya",
 ];
 
 function isCancelMessage(message: string) {
@@ -171,6 +172,56 @@ export async function POST(req: NextRequest) {
 
     const phoneNormalized = normalizePhone(from);
     const cleanedMessage = messageText.trim();
+    const existingReports = await db
+      .select()
+      .from(reports)
+      .where(
+        and(
+          eq(reports.nomorWa, phoneNormalized),
+          inArray(reports.status, ["masuk", "diproses"])
+        )
+      )
+      .limit(1);
+    const existingReport = existingReports[0];
+
+    const sendLoggedMessage = async (params: {
+      content: string;
+      reportId?: number;
+      sentBy: "ai" | "system" | "admin";
+    }) => {
+      const sendResult = await sendWhatsApp(from, params.content);
+      await db.insert(waLogs).values({
+        reportId: params.reportId,
+        direction: "outbound",
+        content: params.content,
+        phoneNumber: phoneNormalized,
+        status: sendResult.success ? "sent" : "failed",
+        sentBy: params.sentBy,
+      });
+      return sendResult;
+    };
+
+    const upsertIntakeSession = async (intent: "new_report" | "needs_guidance" = "new_report") => {
+      await db.insert(waSessions).values({
+        phoneNumber: phoneNormalized,
+        currentStep: "ask_name",
+        lastDetectedIntent: intent,
+        status: "collecting",
+      }).onConflictDoUpdate({
+        target: waSessions.phoneNumber,
+        set: {
+          currentStep: "ask_name",
+          lastDetectedIntent: intent,
+          nama: null,
+          kelurahan: null,
+          rw: null,
+          isiLaporan: null,
+          clarificationCount: 0,
+          status: "collecting",
+          updatedAt: new Date(),
+        },
+      });
+    };
 
     const activeSessions = await db
       .select()
@@ -202,11 +253,13 @@ export async function POST(req: NextRequest) {
       await db.insert(waSessions).values({
         phoneNumber: phoneNormalized,
         currentStep: "ask_name",
+        lastDetectedIntent: "new_report",
         status: "collecting",
       }).onConflictDoUpdate({
         target: waSessions.phoneNumber,
         set: {
           currentStep: "ask_name",
+          lastDetectedIntent: "new_report",
           nama: null,
           kelurahan: null,
           rw: null,
@@ -222,19 +275,6 @@ export async function POST(req: NextRequest) {
 
     if (activeSession) {
       if (activeSession.currentStep === "confirm_report_intent") {
-        const existingReports = await db
-          .select()
-          .from(reports)
-          .where(
-            and(
-              eq(reports.nomorWa, phoneNormalized),
-              inArray(reports.status, ["masuk", "diproses"])
-            )
-          )
-          .limit(1);
-
-        const existingReport = existingReports[0];
-
         if (wantsNewReport(cleanedMessage)) {
           const reply = await generateIntakeStepReply({
             stage: "new_report_start",
@@ -245,6 +285,7 @@ export async function POST(req: NextRequest) {
             .update(waSessions)
             .set({
               currentStep: "ask_name",
+              lastDetectedIntent: "new_report",
               nama: null,
               kelurahan: null,
               rw: null,
@@ -254,14 +295,7 @@ export async function POST(req: NextRequest) {
             })
             .where(eq(waSessions.id, activeSession.id));
 
-          const sendResult = await sendWhatsApp(from, reply);
-          await db.insert(waLogs).values({
-            direction: "outbound",
-            content: reply,
-            phoneNumber: phoneNormalized,
-            status: sendResult.success ? "sent" : "failed",
-            sentBy: "system",
-          });
+          await sendLoggedMessage({ content: reply, sentBy: "system" });
 
           return NextResponse.json({ ok: true, mode: "new-report" });
         }
@@ -287,13 +321,9 @@ export async function POST(req: NextRequest) {
             isExistingReport: true,
           });
 
-          const sendResult = await sendWhatsApp(from, aiReply);
-          await db.insert(waLogs).values({
-            reportId: existingReport.id,
-            direction: "outbound",
+          await sendLoggedMessage({
             content: aiReply,
-            phoneNumber: phoneNormalized,
-            status: sendResult.success ? "sent" : "failed",
+            reportId: existingReport.id,
             sentBy: "ai",
           });
 
@@ -318,6 +348,7 @@ export async function POST(req: NextRequest) {
           .update(waSessions)
           .set({
             currentStep: "ask_name",
+            lastDetectedIntent: "new_report",
             nama: null,
             kelurahan: null,
             rw: null,
@@ -331,14 +362,7 @@ export async function POST(req: NextRequest) {
           stage: "new_report_start",
           userMessage: cleanedMessage,
         });
-        const sendResult = await sendWhatsApp(from, reply);
-        await db.insert(waLogs).values({
-          direction: "outbound",
-          content: reply,
-          phoneNumber: phoneNormalized,
-          status: sendResult.success ? "sent" : "failed",
-          sentBy: "system",
-        });
+        await sendLoggedMessage({ content: reply, sentBy: "system" });
 
         return NextResponse.json({ ok: true, mode: "restart-intake" });
       }
@@ -355,19 +379,41 @@ export async function POST(req: NextRequest) {
         const nameAssessment = await assessNameInput(cleanedMessage);
 
         if (!nameAssessment.isLikelyName || nameAssessment.confidence < 0.7) {
-          const reply = await generateIntakeStepReply({
-            stage: "ask_name",
-            userMessage: cleanedMessage,
+          const intentAssessment = await classifyConversationIntent({
+            message: cleanedMessage,
+            hasActiveReport: Boolean(existingReport),
+            currentStep: activeSession.currentStep,
           });
 
-          const sendResult = await sendWhatsApp(from, reply);
-          await db.insert(waLogs).values({
-            direction: "outbound",
-            content: reply,
-            phoneNumber: phoneNormalized,
-            status: sendResult.success ? "sent" : "failed",
-            sentBy: "ai",
-          });
+          let reply: string;
+          if (intentAssessment.intent === "info_request") {
+            const infoReply = await answerLegalQuestion(cleanedMessage);
+            reply = `${infoReply} Kalau setelah ini Bapak/Ibu memang ingin membuat laporan, saya bantu mulai pelan-pelan ya. Boleh saya minta nama lengkapnya dulu?`;
+          } else if (existingReport && intentAssessment.intent === "follow_up_existing") {
+            reply = await generateGuidanceReply({
+              message: cleanedMessage,
+              hasActiveReport: true,
+              nomorLaporan: existingReport.nomorLaporan,
+              askForName: false,
+            });
+          } else {
+            reply = await generateGuidanceReply({
+              message: cleanedMessage,
+              hasActiveReport: Boolean(existingReport),
+              nomorLaporan: existingReport?.nomorLaporan,
+              askForName: true,
+            });
+          }
+
+          await db
+            .update(waSessions)
+            .set({
+              lastDetectedIntent: intentAssessment.intent,
+              updatedAt: new Date(),
+            })
+            .where(eq(waSessions.id, activeSession.id));
+
+          await sendLoggedMessage({ content: reply, sentBy: "ai" });
 
           return NextResponse.json({ ok: true, mode: "ask-name-again" });
         }
@@ -384,18 +430,12 @@ export async function POST(req: NextRequest) {
           .set({
             nama,
             currentStep: "ask_kelurahan",
+            lastDetectedIntent: "new_report",
             updatedAt: new Date(),
           })
           .where(eq(waSessions.id, activeSession.id));
 
-        const sendResult = await sendWhatsApp(from, reply);
-        await db.insert(waLogs).values({
-          direction: "outbound",
-          content: reply,
-          phoneNumber: phoneNormalized,
-          status: sendResult.success ? "sent" : "failed",
-          sentBy: "system",
-        });
+        await sendLoggedMessage({ content: reply, sentBy: "system" });
 
         return NextResponse.json({ ok: true, mode: "intake" });
       }
@@ -411,14 +451,7 @@ export async function POST(req: NextRequest) {
             optionsText: KELURAHAN_CIMAHI.join(", "),
           });
 
-          const sendResult = await sendWhatsApp(from, reply);
-          await db.insert(waLogs).values({
-            direction: "outbound",
-            content: reply,
-            phoneNumber: phoneNormalized,
-            status: sendResult.success ? "sent" : "failed",
-            sentBy: "system",
-          });
+          await sendLoggedMessage({ content: reply, sentBy: "system" });
 
           return NextResponse.json({ ok: true, mode: "intake" });
         }
@@ -435,18 +468,12 @@ export async function POST(req: NextRequest) {
           .set({
             kelurahan,
             currentStep: "ask_rw",
+            lastDetectedIntent: "new_report",
             updatedAt: new Date(),
           })
           .where(eq(waSessions.id, activeSession.id));
 
-        const sendResult = await sendWhatsApp(from, reply);
-        await db.insert(waLogs).values({
-          direction: "outbound",
-          content: reply,
-          phoneNumber: phoneNormalized,
-          status: sendResult.success ? "sent" : "failed",
-          sentBy: "system",
-        });
+        await sendLoggedMessage({ content: reply, sentBy: "system" });
 
         return NextResponse.json({ ok: true, mode: "intake" });
       }
@@ -461,14 +488,7 @@ export async function POST(req: NextRequest) {
             nama: activeSession.nama ?? undefined,
             kelurahan: activeSession.kelurahan ?? undefined,
           });
-          const sendResult = await sendWhatsApp(from, reply);
-          await db.insert(waLogs).values({
-            direction: "outbound",
-            content: reply,
-            phoneNumber: phoneNormalized,
-            status: sendResult.success ? "sent" : "failed",
-            sentBy: "system",
-          });
+          await sendLoggedMessage({ content: reply, sentBy: "system" });
 
           return NextResponse.json({ ok: true, mode: "intake" });
         }
@@ -486,18 +506,12 @@ export async function POST(req: NextRequest) {
           .set({
             rw,
             currentStep: "ask_isi_laporan",
+            lastDetectedIntent: "new_report",
             updatedAt: new Date(),
           })
           .where(eq(waSessions.id, activeSession.id));
 
-        const sendResult = await sendWhatsApp(from, reply);
-        await db.insert(waLogs).values({
-          direction: "outbound",
-          content: reply,
-          phoneNumber: phoneNormalized,
-          status: sendResult.success ? "sent" : "failed",
-          sentBy: "system",
-        });
+        await sendLoggedMessage({ content: reply, sentBy: "system" });
 
         return NextResponse.json({ ok: true, mode: "intake" });
       }
@@ -527,18 +541,12 @@ export async function POST(req: NextRequest) {
             .set({
               isiLaporan: mergedDraft,
               clarificationCount: activeSession.clarificationCount + 1,
+              lastDetectedIntent: "new_report",
               updatedAt: new Date(),
             })
             .where(eq(waSessions.id, activeSession.id));
 
-          const sendResult = await sendWhatsApp(from, reply);
-          await db.insert(waLogs).values({
-            direction: "outbound",
-            content: reply,
-            phoneNumber: phoneNormalized,
-            status: sendResult.success ? "sent" : "failed",
-            sentBy: "ai",
-          });
+          await sendLoggedMessage({ content: reply, sentBy: "ai" });
 
           return NextResponse.json({ ok: true, mode: "clarify" });
         }
@@ -581,14 +589,9 @@ export async function POST(req: NextRequest) {
           newReport.nomorLaporan,
           surveyUrl
         )}\n\n${aiReply}`;
-        const sendResult = await sendWhatsApp(from, confirmationMessage);
-
-        await db.insert(waLogs).values({
-          reportId: newReport.id,
-          direction: "outbound",
+        await sendLoggedMessage({
           content: confirmationMessage,
-          phoneNumber: phoneNormalized,
-          status: sendResult.success ? "sent" : "failed",
+          reportId: newReport.id,
           sentBy: "ai",
         });
 
@@ -596,6 +599,7 @@ export async function POST(req: NextRequest) {
           .update(waSessions)
           .set({
             isiLaporan: mergedDraft,
+            lastDetectedIntent: "new_report",
             status: "completed",
             updatedAt: new Date(),
           })
@@ -616,164 +620,126 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Check if this phone has an existing open report
-    const existingReports = await db
-      .select()
-      .from(reports)
-      .where(
-        and(
-          eq(reports.nomorWa, phoneNormalized),
-          inArray(reports.status, ["masuk", "diproses"])
-        )
-      )
-      .limit(1);
+    const intentAssessment = await classifyConversationIntent({
+      message: cleanedMessage,
+      hasActiveReport: Boolean(existingReport),
+    });
 
-    if (existingReports.length > 0) {
-      const existingReport = existingReports[0];
-
-      if (wantsNewReport(cleanedMessage)) {
-        await db.insert(waSessions).values({
-          phoneNumber: phoneNormalized,
-          currentStep: "ask_name",
-          status: "collecting",
-        }).onConflictDoUpdate({
-          target: waSessions.phoneNumber,
-          set: {
-            currentStep: "ask_name",
-            nama: null,
-            kelurahan: null,
-            rw: null,
-            isiLaporan: null,
-            clarificationCount: 0,
-            status: "collecting",
-            updatedAt: new Date(),
-          },
-        });
+    if (existingReport) {
+      if (wantsNewReport(cleanedMessage) || intentAssessment.intent === "new_report") {
+        await upsertIntakeSession("new_report");
 
         const reply = await generateIntakeStepReply({
           stage: "new_report_start",
           userMessage: cleanedMessage,
         });
-        const sendResult = await sendWhatsApp(from, reply);
-        await db.insert(waLogs).values({
-          direction: "outbound",
-          content: reply,
-          phoneNumber: phoneNormalized,
-          status: sendResult.success ? "sent" : "failed",
-          sentBy: "system",
-        });
+        await sendLoggedMessage({ content: reply, sentBy: "system" });
 
         return NextResponse.json({ ok: true, mode: "new-report" });
       }
 
-      if (!wantsFollowUp(cleanedMessage) && !cleanedMessage.includes(existingReport.nomorLaporan)) {
-        const reply = await generateIntakeStepReply({
-          stage: "confirm_report_intent",
-          userMessage: cleanedMessage,
-          nomorLaporanAktif: existingReport.nomorLaporan,
-        });
-
-        await db.insert(waSessions).values({
-          phoneNumber: phoneNormalized,
-          currentStep: "confirm_report_intent",
-          isiLaporan: cleanedMessage,
-          status: "collecting",
-        }).onConflictDoUpdate({
-          target: waSessions.phoneNumber,
-          set: {
-            currentStep: "confirm_report_intent",
-            isiLaporan: cleanedMessage,
-            clarificationCount: 0,
-            status: "collecting",
-            updatedAt: new Date(),
-          },
-        });
-
-        const sendResult = await sendWhatsApp(from, reply);
+      if (
+        wantsFollowUp(cleanedMessage) ||
+        cleanedMessage.includes(existingReport.nomorLaporan) ||
+        intentAssessment.intent === "follow_up_existing"
+      ) {
         await db.insert(waLogs).values({
-          direction: "outbound",
-          content: reply,
+          reportId: existingReport.id,
+          direction: "inbound",
+          content: cleanedMessage,
           phoneNumber: phoneNormalized,
-          status: sendResult.success ? "sent" : "failed",
+          status: "received",
           sentBy: "system",
         });
 
-        return NextResponse.json({ ok: true, mode: "confirm-intent" });
+        const aiReply = await generateWebhookReply({
+          message: cleanedMessage,
+          nomorLaporan: existingReport.nomorLaporan,
+          isExistingReport: true,
+        });
+
+        await sendLoggedMessage({
+          content: aiReply,
+          reportId: existingReport.id,
+          sentBy: "ai",
+        });
+
+        broadcastSseEvent({
+          type: "new_wa_message",
+          reportId: existingReport.id,
+          message: cleanedMessage,
+        });
+
+        return NextResponse.json({ ok: true, mode: "follow-up" });
       }
 
-      // Log as incoming message on existing report
-      await db.insert(waLogs).values({
-        reportId: existingReport.id,
-        direction: "inbound",
-        content: cleanedMessage,
-        phoneNumber: phoneNormalized,
-        status: "received",
-        sentBy: "system",
-      });
+      if (intentAssessment.intent === "info_request") {
+        const infoReply = await answerLegalQuestion(cleanedMessage);
+        const reply = `${infoReply} Kalau Bapak/Ibu juga ingin menambahkan informasi untuk laporan ${existingReport.nomorLaporan}, silakan lanjutkan. Jika ingin membuat laporan baru yang terpisah, balas laporan baru ya.`;
+        await sendLoggedMessage({ content: reply, sentBy: "ai" });
+        return NextResponse.json({ ok: true, mode: "info-with-active-report" });
+      }
 
-      const aiReply = await generateWebhookReply({
+      const reply = await generateGuidanceReply({
         message: cleanedMessage,
+        hasActiveReport: true,
         nomorLaporan: existingReport.nomorLaporan,
-        isExistingReport: true,
-      });
-
-      const sendResult = await sendWhatsApp(from, aiReply);
-
-      await db.insert(waLogs).values({
-        reportId: existingReport.id,
-        direction: "outbound",
-        content: aiReply,
-        phoneNumber: phoneNormalized,
-        status: sendResult.success ? "sent" : "failed",
-        sentBy: "ai",
-      });
-
-      broadcastSseEvent({
-        type: "new_wa_message",
-        reportId: existingReport.id,
-        message: cleanedMessage,
-      });
-    } else {
-      await db.insert(waLogs).values({
-        direction: "inbound",
-        content: cleanedMessage,
-        phoneNumber: phoneNormalized,
-        status: "received",
-        sentBy: "system",
       });
 
       await db.insert(waSessions).values({
         phoneNumber: phoneNormalized,
-        currentStep: "ask_name",
+        currentStep: "confirm_report_intent",
+        lastDetectedIntent: intentAssessment.intent,
+        isiLaporan: cleanedMessage,
         status: "collecting",
       }).onConflictDoUpdate({
         target: waSessions.phoneNumber,
         set: {
-          currentStep: "ask_name",
-          nama: null,
-          kelurahan: null,
-          rw: null,
-          isiLaporan: null,
+          currentStep: "confirm_report_intent",
+          lastDetectedIntent: intentAssessment.intent,
+          isiLaporan: cleanedMessage,
           clarificationCount: 0,
           status: "collecting",
           updatedAt: new Date(),
         },
       });
 
+      await sendLoggedMessage({ content: reply, sentBy: "ai" });
+      return NextResponse.json({ ok: true, mode: "guidance-active-report" });
+    }
+
+    await db.insert(waLogs).values({
+      direction: "inbound",
+      content: cleanedMessage,
+      phoneNumber: phoneNormalized,
+      status: "received",
+      sentBy: "system",
+    });
+
+    if (intentAssessment.intent === "info_request") {
+      const infoReply = await answerLegalQuestion(cleanedMessage);
+      const reply = `${infoReply} Kalau setelah ini Bapak/Ibu ingin membuat laporan, saya siap bantu mulai dari awal ya.`;
+      await sendLoggedMessage({ content: reply, sentBy: "ai" });
+      return NextResponse.json({ ok: true, mode: "info" });
+    }
+
+    if (intentAssessment.intent === "new_report") {
+      await upsertIntakeSession("new_report");
+
       const greetingMessage = await generateIntakeStepReply({
         stage: "ask_name",
         userMessage: cleanedMessage,
       });
-      const sendResult = await sendWhatsApp(from, greetingMessage);
-
-      await db.insert(waLogs).values({
-        direction: "outbound",
-        content: greetingMessage,
-        phoneNumber: phoneNormalized,
-        status: sendResult.success ? "sent" : "failed",
-        sentBy: "system",
-      });
+      await sendLoggedMessage({ content: greetingMessage, sentBy: "system" });
+      return NextResponse.json({ ok: true, mode: "new-report-intake" });
     }
+
+    const guidanceMessage = await generateGuidanceReply({
+      message: cleanedMessage,
+      askForName: true,
+    });
+    await upsertIntakeSession("needs_guidance");
+    await sendLoggedMessage({ content: guidanceMessage, sentBy: "ai" });
 
     return NextResponse.json({ ok: true });
   } catch (err) {

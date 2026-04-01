@@ -145,6 +145,7 @@ async function main() {
       "id" serial PRIMARY KEY NOT NULL,
       "phone_number" text NOT NULL UNIQUE,
       "current_step" text NOT NULL DEFAULT 'ask_name',
+      "last_detected_intent" text DEFAULT 'needs_guidance',
       "nama" text,
       "kelurahan" text,
       "rw" text,
@@ -176,6 +177,11 @@ async function main() {
   await sql`
     ALTER TABLE "wa_sessions"
     ADD COLUMN IF NOT EXISTS "clarification_count" integer NOT NULL DEFAULT 0
+  `;
+
+  await sql`
+    ALTER TABLE "wa_sessions"
+    ADD COLUMN IF NOT EXISTS "last_detected_intent" text DEFAULT 'needs_guidance'
   `;
 
   await sql`

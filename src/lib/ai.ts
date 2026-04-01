@@ -92,6 +92,67 @@ export interface NameAssessment {
   reason: string;
 }
 
+export type ConversationIntent =
+  | "info_request"
+  | "new_report"
+  | "follow_up_existing"
+  | "needs_guidance";
+
+export interface IntentAssessment {
+  intent: ConversationIntent;
+  confidence: number;
+  reason: string;
+}
+
+export async function generateGuidanceReply(params: {
+  message: string;
+  hasActiveReport?: boolean;
+  nomorLaporan?: string;
+  askForName?: boolean;
+}): Promise<string> {
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+  const knowledgeEntries = await findRelevantKnowledge(params.message, 4);
+  const knowledgeContext = buildKnowledgeContext(knowledgeEntries);
+
+  const prompt = `Kamu adalah admin frontdesk WhatsApp SAHATE KEJARI CIMAHI.
+
+Pesan warga:
+"${params.message}"
+
+Konteks:
+- Warga ${params.hasActiveReport ? "memiliki" : "tidak memiliki"} laporan aktif${params.nomorLaporan ? ` dengan nomor ${params.nomorLaporan}` : ""}.
+- ${params.askForName ? "Setelah merespons isi chat, arahkan dengan halus agar warga menyebutkan nama lengkap bila ingin lanjut buat laporan." : "Setelah merespons isi chat, beri tindak lanjut yang paling natural sesuai konteks."}
+
+Bank data admin:
+${knowledgeContext}
+
+Aturan:
+- Jawab seperti admin manusia yang hangat, tenang, dan sigap.
+- Respons dulu isi pesan warga, jangan langsung memberi instruksi mentah.
+- Jika pesan masih belum jelas, bantu arahkan dengan satu langkah kecil berikutnya.
+- Jika informasi resmi belum cukup, katakan dengan jujur admin akan bantu menindaklanjuti.
+- Jangan mengarang detail di luar bank data admin.
+- Jangan gunakan markdown.
+- Maksimal 420 karakter.
+
+Balas hanya isi pesan final.`;
+
+  try {
+    const result = await model.generateContent(prompt);
+    return result.response.text().trim();
+  } catch {
+    if (params.hasActiveReport && params.nomorLaporan) {
+      return `Baik, saya bantu ya. Nomor WhatsApp ini masih terhubung dengan laporan ${params.nomorLaporan}. Kalau Bapak/Ibu ingin menambahkan informasi untuk laporan itu, silakan lanjutkan. Kalau ingin membuat laporan baru yang terpisah, saya juga siap bantu dari awal.`;
+    }
+
+    if (params.askForName) {
+      return "Baik, saya bantu ya. Supaya kalau Bapak/Ibu ingin lanjut membuat laporan datanya bisa tercatat dengan rapi, boleh saya mulai dulu dari nama lengkapnya?";
+    }
+
+    return "Baik, saya bantu ya. Silakan ceritakan dulu kebutuhan Bapak/Ibu, nanti saya arahkan pelan-pelan supaya informasinya tepat.";
+  }
+}
+
 export async function categorizeReport(
   isiLaporan: string
 ): Promise<CategorizeResult> {
@@ -144,6 +205,97 @@ Balas HANYA dalam format JSON valid berikut (tanpa teks lain):
       alasan: "Tidak dapat dikategorikan secara otomatis",
       bidangSaran: "PBIN",
     };
+  }
+}
+
+export async function classifyConversationIntent(params: {
+  message: string;
+  hasActiveReport: boolean;
+  currentStep?: string;
+}): Promise<IntentAssessment> {
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+  const { message, hasActiveReport, currentStep } = params;
+
+  const prompt = `Kamu menilai niat utama warga di chat WhatsApp layanan SAHATE Kejari Cimahi.
+
+Pesan warga:
+"${message}"
+
+Konteks:
+- Warga ${hasActiveReport ? "memiliki" : "tidak memiliki"} laporan aktif.
+- Step sesi saat ini: ${currentStep ?? "-"}
+
+Pilih SATU intent:
+- info_request: warga sedang bertanya informasi, status, prosedur, alamat, jam layanan, atau hal umum.
+- new_report: warga tampak ingin membuat laporan/pengaduan baru.
+- follow_up_existing: warga tampak menambahkan informasi untuk laporan aktif yang sudah ada.
+- needs_guidance: warga masih bingung, curhat awal, salam, atau belum cukup jelas arahnya.
+
+Balas hanya JSON valid:
+{
+  "intent": "needs_guidance",
+  "confidence": 0.82,
+  "reason": "alasan singkat"
+}`;
+
+  try {
+    const result = await model.generateContent(prompt);
+    const text = result.response.text().trim();
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error("No JSON");
+    const parsed = JSON.parse(jsonMatch[0]) as IntentAssessment;
+    return parsed;
+  } catch {
+    const lower = message.toLowerCase();
+    const infoWords = [
+      "bagaimana",
+      "gimana",
+      "apa",
+      "kenapa",
+      "kapan",
+      "dimana",
+      "alamat",
+      "jam",
+      "status",
+      "cek",
+      "tilang",
+      "syarat",
+      "prosedur",
+      "konsultasi",
+    ];
+    const newReportWords = [
+      "lapor",
+      "laporan",
+      "pengaduan",
+      "aduan",
+      "pungli",
+      "korupsi",
+      "penipuan",
+      "pencurian",
+      "penganiayaan",
+      "narkoba",
+    ];
+    const followUpWords = [
+      "tambahan",
+      "lanjutkan",
+      "laporan saya",
+      "nomor laporan",
+      "update laporan",
+    ];
+
+    if (infoWords.some((word) => lower.includes(word)) || lower.includes("?")) {
+      return { intent: "info_request", confidence: 0.7, reason: "terlihat seperti pertanyaan informasi" };
+    }
+
+    if (hasActiveReport && followUpWords.some((word) => lower.includes(word))) {
+      return { intent: "follow_up_existing", confidence: 0.72, reason: "terlihat seperti tambahan untuk laporan aktif" };
+    }
+
+    if (newReportWords.some((word) => lower.includes(word))) {
+      return { intent: "new_report", confidence: 0.68, reason: "terlihat seperti ingin membuat pengaduan baru" };
+    }
+
+    return { intent: "needs_guidance", confidence: 0.55, reason: "pesan masih butuh diarahkan lebih lanjut" };
   }
 }
 
@@ -465,15 +617,43 @@ Balas hanya JSON valid:
       .replace(/\s+/g, " ")
       .trim();
     const words = cleaned.split(" ").filter(Boolean);
+    const lower = message.toLowerCase();
+    const blockedWords = [
+      "saya",
+      "aku",
+      "kami",
+      "mau",
+      "ingin",
+      "lapor",
+      "laporan",
+      "pengaduan",
+      "aduan",
+      "tolong",
+      "bantu",
+      "admin",
+      "halo",
+      "hai",
+      "selamat",
+      "kenapa",
+      "bagaimana",
+      "gimana",
+      "kapan",
+      "dimana",
+      "status",
+      "cek",
+      "takut",
+      "bingung",
+      "mohon",
+      "saya mau",
+    ];
     const likelyName =
       cleaned.length >= 3 &&
       cleaned.length <= 40 &&
       words.length >= 1 &&
-      words.length <= 4 &&
+      words.length <= 3 &&
       !/[?0-9]/.test(message) &&
-      !message.toLowerCase().includes("lapor") &&
-      !message.toLowerCase().includes("kenapa") &&
-      !message.toLowerCase().includes("saya mau");
+      !blockedWords.some((word) => lower.includes(word)) &&
+      !/\b(di|ke|dari|untuk|karena)\b/i.test(cleaned);
 
     return {
       isLikelyName: likelyName,

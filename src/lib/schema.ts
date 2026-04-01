@@ -137,6 +137,7 @@ export const waSessions = pgTable("wa_sessions", {
   id: serial("id").primaryKey(),
   phoneNumber: text("phone_number").notNull().unique(),
   currentStep: text("current_step").notNull().default("ask_name"),
+  lastDetectedIntent: text("last_detected_intent").default("needs_guidance"),
   nama: text("nama"),
   kelurahan: text("kelurahan"),
   rw: text("rw"),
