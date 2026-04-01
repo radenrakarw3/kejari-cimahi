@@ -85,6 +85,13 @@ export interface IntakeAssessment {
   reason: string;
 }
 
+export interface NameAssessment {
+  isLikelyName: boolean;
+  confidence: number;
+  extractedName: string;
+  reason: string;
+}
+
 export async function categorizeReport(
   isiLaporan: string
 ): Promise<CategorizeResult> {
@@ -419,6 +426,63 @@ Balas hanya isi pesan final.`;
       default:
         return "Baik, saya bantu ya. Boleh diinformasikan nama lengkap Bapak/Ibu terlebih dahulu?";
     }
+  }
+}
+
+export async function assessNameInput(message: string): Promise<NameAssessment> {
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+  const prompt = `Kamu menilai apakah pesan warga kemungkinan adalah nama lengkap atau panggilan nama yang layak dipakai untuk administrasi awal.
+
+Pesan warga:
+"${message}"
+
+Aturan:
+- isLikelyName = true jika pesan dominan berisi nama orang, misalnya "Budi", "Siti Aminah", "Andi Saputra".
+- isLikelyName = false jika pesan lebih mirip pertanyaan, curhat, salam, keluhan, kalimat panjang, atau jawaban yang bukan nama.
+- extractedName berisi nama yang dibersihkan jika memang kemungkinan nama. Jika bukan nama, isi string kosong.
+- confidence diisi 0 sampai 1.
+- reason jelaskan singkat.
+
+Balas hanya JSON valid:
+{
+  "isLikelyName": true,
+  "confidence": 0.93,
+  "extractedName": "Siti Aminah",
+  "reason": "pesan dominan berisi nama orang"
+}`;
+
+  try {
+    const result = await model.generateContent(prompt);
+    const text = result.response.text().trim();
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error("No JSON");
+    const parsed = JSON.parse(jsonMatch[0]) as NameAssessment;
+    return parsed;
+  } catch {
+    const cleaned = message
+      .replace(/[^a-zA-Z\s'.-]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    const words = cleaned.split(" ").filter(Boolean);
+    const likelyName =
+      cleaned.length >= 3 &&
+      cleaned.length <= 40 &&
+      words.length >= 1 &&
+      words.length <= 4 &&
+      !/[?0-9]/.test(message) &&
+      !message.toLowerCase().includes("lapor") &&
+      !message.toLowerCase().includes("kenapa") &&
+      !message.toLowerCase().includes("saya mau");
+
+    return {
+      isLikelyName: likelyName,
+      confidence: likelyName ? 0.7 : 0.35,
+      extractedName: likelyName ? cleaned : "",
+      reason: likelyName
+        ? "pesan terlihat seperti nama singkat"
+        : "pesan lebih mirip kalimat biasa daripada nama",
+    };
   }
 }
 

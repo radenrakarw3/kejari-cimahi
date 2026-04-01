@@ -6,6 +6,7 @@ import { broadcastSseEvent } from "@/lib/sse";
 import { generateNomorLaporan } from "@/lib/nomor-laporan";
 import {
   assessReportIntake,
+  assessNameInput,
   generateClarifyingQuestion,
   generateIntakeStepReply,
   generateWebhookReply,
@@ -351,7 +352,27 @@ export async function POST(req: NextRequest) {
       });
 
       if (activeSession.currentStep === "ask_name") {
-        const nama = cleanedMessage.slice(0, 120);
+        const nameAssessment = await assessNameInput(cleanedMessage);
+
+        if (!nameAssessment.isLikelyName || nameAssessment.confidence < 0.7) {
+          const reply = await generateIntakeStepReply({
+            stage: "ask_name",
+            userMessage: cleanedMessage,
+          });
+
+          const sendResult = await sendWhatsApp(from, reply);
+          await db.insert(waLogs).values({
+            direction: "outbound",
+            content: reply,
+            phoneNumber: phoneNormalized,
+            status: sendResult.success ? "sent" : "failed",
+            sentBy: "ai",
+          });
+
+          return NextResponse.json({ ok: true, mode: "ask-name-again" });
+        }
+
+        const nama = (nameAssessment.extractedName || cleanedMessage).slice(0, 120);
         const reply = await generateIntakeStepReply({
           stage: "ask_kelurahan",
           userMessage: cleanedMessage,
