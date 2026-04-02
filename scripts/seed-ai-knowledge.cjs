@@ -144,7 +144,7 @@ const entries = [
     title: "Bidang layanan yang ada di Kejari Cimahi",
     tags: "bidang kejari cimahi, intelijen, pidana umum, pidana khusus, datun, pembinaan",
     content:
-      "Jika warga menanyakan bidang apa saja yang ada di Kejari Cimahi, jelaskan bahwa website resminya menampilkan beberapa bidang utama seperti Pembinaan, Intelijen, Pidana Umum, Pidana Khusus, Perdata dan Tata Usaha Negara, serta Pengelolaan Barang Bukti. Penjelasan ini bisa dipakai untuk membantu warga memahami arah pertanyaannya. Misalnya, konsultasi hukum perdata dapat diarahkan ke ranah Perdata dan TUN, sedangkan penjelasan umum perkara pidana dapat dikaitkan dengan Pidana Umum atau Pidana Khusus sesuai konteksnya.",
+      "Jika warga menanyakan seksi apa saja yang ada di Kejari Cimahi, jelaskan bahwa layanan dan fungsi kelembagaan antara lain mencakup Seksi Pembinaan, Seksi Intelijen, Seksi Tindak Pidana Umum, Seksi Tindak Pidana Khusus, Seksi Perdata dan Tata Usaha Negara, serta Seksi Pemulihan Aset dan Pengelolaan Barang Bukti. Penjelasan ini bisa dipakai untuk membantu warga memahami arah pertanyaannya. Misalnya, konsultasi hukum perdata dapat diarahkan ke Seksi Perdata dan Tata Usaha Negara, sedangkan penjelasan umum perkara pidana dapat dikaitkan dengan Seksi Tindak Pidana Umum atau Seksi Tindak Pidana Khusus sesuai konteksnya.",
   },
   {
     title: "Peran umum Kejaksaan menurut profil resmi Kejari Cimahi",

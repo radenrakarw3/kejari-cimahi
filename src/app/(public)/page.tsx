@@ -373,11 +373,12 @@ export default function LandingPage() {
                     </motion.div>
                     <motion.div variants={fadeUp} className="grid sm:grid-cols-2 gap-2">
                       {[
-                        "Bidang Pembinaan",
-                        "Bidang Intelijen",
-                        "Tindak Pidana Umum",
-                        "Tindak Pidana Khusus",
-                        "Perdata & Tata Usaha Negara",
+                        "Seksi Pembinaan",
+                        "Seksi Intelijen",
+                        "Seksi Tindak Pidana Umum",
+                        "Seksi Tindak Pidana Khusus",
+                        "Seksi Perdata dan Tata Usaha Negara",
+                        "Seksi Pemulihan Aset dan Pengelolaan Barang Bukti",
                       ].map((b) => (
                         <div key={b} className="flex items-center gap-2 text-sm" style={{ color: "#c8e6d0" }}>
                           <CheckCircle className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "#f0b429" }} />

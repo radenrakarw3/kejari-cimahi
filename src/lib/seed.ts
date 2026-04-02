@@ -73,29 +73,34 @@ async function seed() {
     .insert(bidang)
     .values([
       {
-        nama: "Pembinaan",
+        nama: "Seksi Pembinaan",
         kode: "PBIN",
         deskripsi: "Administrasi, kepegawaian, dan dukungan teknis",
       },
       {
-        nama: "Intelijen",
+        nama: "Seksi Intelijen",
         kode: "INTEL",
         deskripsi: "Intelijen penegakan hukum dan pengamanan pembangunan",
       },
       {
-        nama: "Tindak Pidana Umum",
+        nama: "Seksi Tindak Pidana Umum",
         kode: "PIDUM",
         deskripsi: "Penuntutan perkara pidana umum",
       },
       {
-        nama: "Tindak Pidana Khusus",
+        nama: "Seksi Tindak Pidana Khusus",
         kode: "PIDSUS",
         deskripsi: "Penuntutan korupsi, narkotika, dan tindak pidana khusus",
       },
       {
-        nama: "Perdata & TUN",
+        nama: "Seksi Perdata dan Tata Usaha Negara",
         kode: "DATUN",
         deskripsi: "Perkara perdata dan tata usaha negara",
+      },
+      {
+        nama: "Seksi Pemulihan Aset dan Pengelolaan Barang Bukti",
+        kode: "PAPBB",
+        deskripsi: "Pemulihan aset serta pengelolaan barang bukti",
       },
     ])
     .onConflictDoNothing();
