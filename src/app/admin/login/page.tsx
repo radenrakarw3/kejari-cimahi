@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { signIn } from "@/lib/auth-client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,17 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("reason") !== "forbidden") return;
+    toast.error(
+      "Akun ini tidak memiliki peran admin di sistem. Sandi bisa benar, tapi role di database harus diperbaiki. " +
+        "Jalankan dari folder proyek: npm run create-admin -- --repair (atau minta operator basis data).",
+      { duration: 12_000 },
+    );
+    window.history.replaceState({}, "", "/admin/login");
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

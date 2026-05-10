@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { reports, categories, verification, reportAttachments } from "@/lib/schema";
 import { insertReportSchema } from "@/lib/schema";
 import { generateNomorLaporan } from "@/lib/nomor-laporan";
+import { buildPublicSurveyUrl } from "@/lib/public-app-url";
 import { sendWhatsApp, buildConfirmationMessage, normalizePhone } from "@/lib/whatsapp";
 import { broadcastSseEvent } from "@/lib/sse";
 import { auth } from "@/lib/auth";
@@ -181,8 +182,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-    const surveyUrl = `${appUrl}/survey/${report.id}`;
+    const surveyUrl = buildPublicSurveyUrl(report.id) ?? undefined;
 
     // Fire and forget: WA confirmation
     if (report.nomorWa) {

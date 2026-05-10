@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { getReportFormUrlForMessaging } from "./public-app-url";
 import { db } from "./db";
 import { aiAssistantSettings, aiKnowledgeEntries } from "./schema";
 import { desc, eq, sql } from "drizzle-orm";
@@ -485,9 +486,13 @@ export async function answerWhatsAppFromKnowledge(params: {
   usedKnowledge: boolean;
   routeToReportForm: boolean;
 }> {
-  const { message, history, appUrl, reportFormUrl } = params;
-  const normalizedAppUrl = (appUrl ?? "http://localhost:3000").replace(/\/$/, "");
-  const normalizedReportFormUrl = (reportFormUrl ?? `${normalizedAppUrl}/lapor`).replace(/\/$/, "");
+  const { message, history, reportFormUrl } = params;
+  const normalizedReportFormUrl = getReportFormUrlForMessaging().replace(/\/$/, "");
+  const formFromParams = typeof reportFormUrl === "string" ? reportFormUrl.replace(/\/$/, "") : "";
+  const reportFormLink =
+    formFromParams && !formFromParams.includes("localhost") && !formFromParams.includes("127.0.0.1")
+      ? formFromParams
+      : normalizedReportFormUrl;
   const person = inferPersonContext(history, message);
   const emotionalContext = detectEmotionalContext(message);
   const languageGuide = buildLanguageVariationGuide(message);
@@ -495,7 +500,7 @@ export async function answerWhatsAppFromKnowledge(params: {
 
   if (shouldOfferReportForm(message, history)) {
     return {
-      reply: `${emotionalContext.needsComfort ? `${emotionalContext.comfortLine} ` : ""}Tentu ${person.preferredGreeting}, untuk pencatatan laporan resmi memang dilakukan melalui web, bukan lewat WhatsApp. Silakan isi formulir laporan di link ini ya: ${normalizedReportFormUrl}. Setelah terkirim, tim kami akan menindaklanjuti sesuai alur yang berlaku.`,
+      reply: `${emotionalContext.needsComfort ? `${emotionalContext.comfortLine} ` : ""}${person.preferredGreeting}, agar laporan tercatat rapi dan data Anda terjaga alurnya, pengajuan resmi dilakukan lewat formulir di website (bukan lewat percakapan ini saja). Silakan buka tautan berikut, isi perlahan: ${reportFormLink}. Setelah terkirim, tim mengikuti ketentuan yang berlaku dan mengabari perkembangan melalui jalur resmi maupun nomor ini bila perlu.`,
       usedKnowledge: false,
       routeToReportForm: true,
     };
@@ -512,7 +517,7 @@ export async function answerWhatsAppFromKnowledge(params: {
   if (knowledgeEntries.length === 0) {
     return {
       reply:
-        `${emotionalContext.needsComfort ? `${emotionalContext.comfortLine} ` : ""}Terima kasih ${person.preferredGreeting}, pesan Anda sudah kami terima. Untuk memastikan informasinya tepat, pertanyaan ini akan kami bantu cek lebih lanjut oleh admin. ${languageGuide.closing}`,
+        `${emotionalContext.needsComfort ? `${emotionalContext.comfortLine} ` : ""}Pesan ${person.preferredGreeting} sudah sampai di kami. Agar jawabannya tepat, mohon izinkan tim admin menelusuri dulu; kami segera menghubungi balik lewat nomor ini. Yang Anda sampaikan kami rahasiakan sesuai aturan pelayanan. ${languageGuide.closing}`,
       usedKnowledge: false,
       routeToReportForm: false,
     };
@@ -537,7 +542,7 @@ ATURAN UTAMA:
 4. Tujuan utama balasan adalah membantu menenangkan hati dan pikiran warga, tanpa terkesan berlebihan atau dibuat-buat.
 5. Jika referensi tidak cukup untuk menjawab lengkap, sampaikan dengan sopan bahwa admin akan membantu mengecek lebih lanjut.
 6. Jika warga menceritakan kasus konkret, terlihat sedang mencari tindak lanjut, atau butuh bantuan penanganan kasusnya, prioritaskan arahkan lebih cepat ke form laporan web.
-7. Jika perlu mengarahkan laporan, jelaskan dengan natural bahwa pencatatan laporan resmi dilakukan melalui web, bukan lewat WhatsApp, lalu berikan link ini: ${normalizedReportFormUrl}
+7. Jika perlu mengarahkan laporan, jelaskan dengan natural bahwa pencatatan laporan resmi dilakukan melalui web, bukan lewat WhatsApp, lalu berikan link ini: ${reportFormLink}
 8. Maksimal 500 karakter.
 9. Gunakan sapaan yang konsisten mengikuti rekomendasi ini: "${person.preferredGreeting}". Jangan mengganti ke sapaan lain di jawaban yang sama.
 10. Jika nama warga sudah diketahui, sebut namanya secara natural agar terasa personal.
@@ -549,6 +554,7 @@ ATURAN UTAMA:
 16. Boleh gunakan variasi frasa seperti "izinkan kami bantu jelaskan", "supaya lebih jelas", "jadi begini ya", "untuk gambaran awal", "kalau mengacu pada informasi yang kami miliki", selama tetap sopan.
 17. Penutup juga perlu bervariasi, misalnya "silakan sampaikan lagi", "kami siap bantu jelaskan", "bila masih ada yang mengganjal", dan jangan mengulang frasa penutup yang sama terus.
 18. Jika ada empati, rangkai dengan kata-kata yang lembut dan bervariasi, jangan memakai kalimat belasungkawa yang identik di setiap balasan.
+19. Bila relevan, tenangkan dengan singkat bahwa data dan cerita warga diperlakukan dengan tertib (bukan jargon hukum panjang), supaya merasa aman bicara.
 
 RIWAYAT CHAT:
 ${historyText}

@@ -61,19 +61,33 @@ export async function sendWhatsApp(
   }
 }
 
+function sapaPelapor(nama: string): string {
+  const n = nama.trim();
+  if (!n || n.toLowerCase() === "anonim") return "Bapak/Ibu";
+  return n;
+}
+
 export function buildConfirmationMessage(
   nama: string,
   nomorLaporan: string,
   surveyUrl?: string
 ): string {
+  const sapa = sapaPelapor(nama);
   const parts = [
-    `Baik ${nama}, laporan sudah kami terima dengan nomor ${nomorLaporan}.`,
+    `Halo ${sapa},`,
     ``,
-    `Catat nomornya ya, biar bisa dipantau perkembangannya. Tim akan segera tindaklanjuti dan akan menghubungi kembali kalau ada yang perlu dikonfirmasi.`,
+    `Laporan sudah masuk ke sistem kami. Nomor tiket: ${nomorLaporan} — tolong disimpan, berguna kalau nanti ingin menanyakan perkembangan.`,
+    ``,
+    `Tenang saja: identitas dan isi laporan kami lindungi sesuai aturan pelayanan; tidak disebarluaskan tanpa keperluan resmi.`,
+    `Kami akan kabari perkembangan secepat mungkin lewat nomor ini. Kalau ada hal mendesak, silakan balas pesan ini.`,
   ];
 
   if (surveyUrl) {
-    parts.push(``, `Kalau berkenan, ada survei singkat buat perbaikan layanan kami:`, surveyUrl);
+    parts.push(
+      ``,
+      `Jika berkenan, lembar pendapat singkat lewat tautan berikut membantu kami memperbaiki layanan (tautan ke website resmi):`,
+      surveyUrl
+    );
   }
 
   return parts.join("\n");
@@ -81,9 +95,9 @@ export function buildConfirmationMessage(
 
 export function buildOtpMessage(code: string): string {
   return [
-    `Kode OTP SAHATE Anda adalah ${code}.`,
-    "Masukkan 4 digit ini untuk melanjutkan verifikasi nomor WhatsApp.",
-    "Kode berlaku 10 menit. Jangan bagikan kode ini kepada siapa pun.",
+    `Ini kode verifikasi SAHATE: ${code}.`,
+    "Masukkan 4 angka di layar pengajuan laporan untuk membuktikan nomor ini milik Anda.",
+    "Berlaku 10 menit. Demi keamanan data Anda, jangan teruskan kode ini ke orang lain.",
   ].join("\n");
 }
 
@@ -93,17 +107,22 @@ export function buildDisposisiMessage(
   bidangNama: string,
   catatan?: string | null
 ): string {
+  const sapa = sapaPelapor(nama);
   const parts = [
-    `Halo ${nama}, laporan Anda dengan nomor ${nomorLaporan} sudah kami terima dan langsung kami teruskan ke seksi ${bidangNama}.`,
-    "Saat ini laporan Anda sudah masuk ke jalur tindak lanjut, jadi tidak berhenti di tahap penerimaan saja.",
-    "Mohon tenang, tim Kejari Cimahi sedang menanganinya setahap demi setahap dan kami akan terus memberi kabar perkembangannya.",
+    `Halo ${sapa},`,
+    ``,
+    `Laporan nomor ${nomorLaporan} sudah kami teruskan ke seksi ${bidangNama}. Artinya perkara tidak berhenti di meja penerimaan — sudah masuk ke penanganan.`,
+    `Informasi yang Anda berikan tetap kami perlakukan dengan hati-hati; yang perlu diketahui pihak lain akan disampaikan lewat jalur resmi saja.`,
   ];
 
   if (catatan?.trim()) {
-    parts.push("", `Catatan admin: ${catatan.trim()}`);
+    parts.push("", `Catatan singkat dari petugas: ${catatan.trim()}`);
   }
 
-  parts.push("", "Kami akan mengabari kembali saat laporan mulai diproses atau ketika penanganannya sudah selesai.");
+  parts.push(
+    "",
+    "Kami akan kabari lagi begitu ada langkah konkrit atau ada perkembangan penting. Kalau ada keraguan, balas pesan ini saja."
+  );
 
   return parts.join("\n");
 }
@@ -113,10 +132,14 @@ export function buildProsesMessage(
   nomorLaporan: string,
   bidangNama: string
 ): string {
+  const sapa = sapaPelapor(nama);
   return [
-    `Halo ${nama}, laporan ${nomorLaporan} saat ini sedang diproses oleh seksi ${bidangNama}.`,
-    "Laporan Anda sedang kami tindak lanjuti secara aktif, jadi mohon tetap tenang dan beri kami sedikit waktu untuk menuntaskan prosesnya dengan baik.",
-    "Terima kasih sudah menunggu. Kami akan mengirim pembaruan lagi setelah penanganan selesai.",
+    `Halo ${sapa},`,
+    ``,
+    `Laporan ${nomorLaporan} sedang ditangani seksi ${bidangNama}. Tim sedang mengerjakan langkah yang diperlukan; mohon sedikit waktu agar pemeriksaan berjalan rapi.`,
+    `Privasi data Anda tetap dijaga selama proses ini berlangsung.`,
+    ``,
+    "Begitu ada perkembangan jelas atau penanganan tuntas, kami kabari lagi lewat nomor ini.",
   ].join("\n");
 }
 
@@ -126,16 +149,22 @@ export function buildSelesaiMessage(
   bidangNama?: string | null,
   outcomeSummary?: string | null
 ): string {
+  const sapa = sapaPelapor(nama);
   const parts = [
-    `Halo ${nama}, laporan ${nomorLaporan} telah selesai ditindaklanjuti${bidangNama ? ` oleh seksi ${bidangNama}` : ""}.`,
-    "Terima kasih karena sudah mempercayakan laporan ini kepada Kejari Cimahi.",
+    `Halo ${sapa},`,
+    ``,
+    `Untuk laporan nomor ${nomorLaporan}, penanganan di sisi kami sudah beres${bidangNama ? ` (melalui seksi ${bidangNama})` : ""}.`,
+    "Terima kasih sudah menyampaikan hal ini lewat jalur resmi — itu membantu kami bekerja lebih terarah.",
   ];
 
   if (outcomeSummary?.trim()) {
-    parts.push("", `Ringkasan hasil: ${outcomeSummary.trim()}`);
+    parts.push("", `Secara singkat hasilnya: ${outcomeSummary.trim()}`);
   }
 
-  parts.push("", "Bila masih ada hal yang perlu disampaikan, Anda bisa membalas pesan ini kapan saja.");
+  parts.push(
+    "",
+    "Kalau masih ada yang mengganjal atau butuh penjelasan lanjutan, silakan balas pesan ini; data yang sudah Anda berikan tetap kami perlakukan dengan tertib."
+  );
 
   return parts.join("\n");
 }
@@ -145,12 +174,15 @@ export function buildAdditionalInfoRequestMessage(
   nomorLaporan: string,
   requestNote: string
 ) {
+  const sapa = sapaPelapor(nama);
   return [
-    `Halo ${nama}, untuk melanjutkan laporan ${nomorLaporan}, kami masih membutuhkan data tambahan dari Anda.`,
-    "Agar penanganan tetap cepat dan tepat, mohon lengkapi informasi berikut:",
+    `Halo ${sapa},`,
+    ``,
+    `Agar laporan nomor ${nomorLaporan} bisa kami proses lanjut, masih ada beberapa hal yang perlu dilengkapi.`,
+    "Mohon bantu isi bagian berikut (cukup yang menurut Anda aman dibagikan; jika ragu, tulis saja di balasan):",
     requestNote.trim(),
     "",
-    "Silakan balas pesan ini atau datang ke PTSP Kejari Cimahi bila Anda lebih nyaman melengkapi secara langsung.",
+    "Bisa balas lewat WA ini atau datang ke PTSP Kejari Cimahi kalau lebih nyaman bicara langsung. Yang Anda kirimkan kami gunakan hanya untuk kepentingan penanganan laporan ini.",
   ].join("\n");
 }
 
@@ -175,10 +207,13 @@ export function buildBidangDisposisiNotification(params: {
   ];
 
   if (params.catatan?.trim()) {
-    parts.push("", `Catatan admin: ${params.catatan.trim()}`);
+    parts.push("", `Catatan singkat: ${params.catatan.trim()}`);
   }
 
-  parts.push("", "Silakan buka portal seksi untuk menindaklanjuti laporan ini.");
+  parts.push(
+    "",
+    "Mohon cek portal seksi untuk tindak lanjut. Data pelapor dan isi laporan tetap dalam lingkup tugas; jangan disebar di luar kebutuhan penanganan."
+  );
 
   return parts.join("\n");
 }

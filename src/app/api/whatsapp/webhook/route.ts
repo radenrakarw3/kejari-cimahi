@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { waLogs } from "@/lib/schema";
+import { getReportFormUrlForMessaging } from "@/lib/public-app-url";
 import { normalizePhone, sendWhatsApp } from "@/lib/whatsapp";
 import { answerWhatsAppFromKnowledge } from "@/lib/ai";
 
@@ -145,18 +146,10 @@ export async function POST(req: NextRequest) {
         content: log.content,
       }));
 
-    const appUrl =
-      process.env.BETTER_AUTH_URL ??
-      process.env.NEXT_PUBLIC_APP_URL ??
-      "http://localhost:3000";
-    const reportFormUrl =
-      process.env.WHATSAPP_REPORT_FORM_URL ??
-      "https://kejari-cimahi-production.up.railway.app/lapor";
     const answer = await answerWhatsAppFromKnowledge({
       message: cleanedMessage,
       history,
-      appUrl,
-      reportFormUrl,
+      reportFormUrl: getReportFormUrlForMessaging(),
     });
 
     await sendAndLogMessage({

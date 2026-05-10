@@ -18,7 +18,8 @@ export default async function AdminLayout({
     if (currentUser.role === "bidang") {
       redirect(currentUser.bidangId ? "/seksi" : "/seksi/login");
     }
-    redirect("/admin/login");
+    /** Bukan admin (mis. role `staff`) — supaya tidak “loop” diam: jelaskan di halaman login. */
+    redirect("/admin/login?reason=forbidden");
   }
 
   return (
