@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { signIn } from "@/lib/auth-client";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +10,6 @@ import { Eye, EyeOff, Lock, Mail } from "lucide-react";
 import Image from "next/image";
 
 export default function LoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
@@ -19,15 +17,11 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    const normalized = email.trim().toLowerCase();
     setLoading(true);
     try {
-      await signIn.email({ email, password });
-      const meRes = await fetch("/api/auth/me", { cache: "no-store" });
-      const meData = (await meRes.json().catch(() => null)) as {
-        user?: { bidangId?: number | null };
-      } | null;
-
-      router.push(meData?.user?.bidangId ? "/seksi" : "/admin/dashboard");
+      await signIn.email({ email: normalized, password });
+      window.location.assign("/admin/dashboard");
     } catch {
       toast.error("Email atau password salah");
     } finally {
