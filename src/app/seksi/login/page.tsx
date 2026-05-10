@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Building2, Eye, EyeOff, Lock, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { signIn } from "@/lib/auth-client";
@@ -10,7 +9,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 export default function SeksiLoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
@@ -26,17 +24,9 @@ export default function SeksiLoginPage() {
     setLoading(true);
     try {
       await signIn.email({ email: normalized, password });
-      const meRes = await fetch("/api/auth/me", { cache: "no-store" });
-      const meData = (await meRes.json().catch(() => null)) as {
-        user?: { bidangId?: number | null };
-      } | null;
-
-      if (meData?.user?.bidangId) {
-        router.push("/seksi");
-        return;
-      }
-      toast.info("Akun ini untuk admin — mengalihkan ke panel admin.");
-      router.push("/admin/dashboard");
+      // Navigasi penuh: request /api/auth/me segera setelah sign-in sering jalan
+      // sebelum cookie sesi terpasang → bidangId hilang dan salah dianggap admin.
+      window.location.assign("/seksi");
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Login gagal";
       toast.error(msg.includes("credential") || msg.includes("INVALID") ? "Email atau password tidak sesuai" : msg);
