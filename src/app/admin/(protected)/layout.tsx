@@ -13,8 +13,12 @@ export default async function AdminLayout({
     redirect("/admin/login");
   }
 
-  if (currentUser.bidangId) {
-    redirect("/seksi");
+  /** Hanya role `admin` yang boleh ke panel admin — jangan pakai `bidangId` saja (bisa salah isi di DB). */
+  if (currentUser.role !== "admin") {
+    if (currentUser.role === "bidang") {
+      redirect(currentUser.bidangId ? "/seksi" : "/seksi/login");
+    }
+    redirect("/admin/login");
   }
 
   return (

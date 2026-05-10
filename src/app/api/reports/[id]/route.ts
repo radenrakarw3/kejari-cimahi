@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { reports, categories, disposisi, waLogs, bidang, user } from "@/lib/schema";
@@ -59,10 +60,10 @@ function hasPelaporPhone(phoneNumber: string | null | undefined) {
 }
 
 export async function GET(
-  req: NextRequest,
+  _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const currentUser = await getAuthenticatedUser(req.headers);
+  const currentUser = await getAuthenticatedUser(await headers());
   if (!currentUser) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -141,7 +142,7 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const currentUser = await getAuthenticatedUser(req.headers);
+  const currentUser = await getAuthenticatedUser(await headers());
   if (!currentUser) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

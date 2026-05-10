@@ -1,8 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+import { headers } from "next/headers";
+import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/authz";
 
-export async function GET(req: NextRequest) {
-  const currentUser = await getAuthenticatedUser(req.headers);
+export async function GET() {
+  const currentUser = await getAuthenticatedUser(await headers());
 
   if (!currentUser) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

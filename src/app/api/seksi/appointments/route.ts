@@ -1,15 +1,26 @@
+import { headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { and, asc, desc, eq, gte, lt } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { bidang, ptspAppointments } from "@/lib/schema";
-import { getAuthenticatedUser } from "@/lib/authz";
+import { type AuthenticatedUser, getAuthenticatedUser } from "@/lib/authz";
 import { getJakartaDayRange } from "@/lib/ptsp";
 
-export async function GET(req: NextRequest) {
-  const currentUser = await getAuthenticatedUser(req.headers);
-  if (!currentUser || !currentUser.bidangId) {
+type SeksiUser = AuthenticatedUser & { role: "bidang"; bidangId: number };
+
+function requireSeksiUser(
+  currentUser: AuthenticatedUser | null
+): NextResponse | SeksiUser {
+  if (!currentUser || currentUser.role !== "bidang" || currentUser.bidangId == null) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  return currentUser as SeksiUser;
+}
+
+export async function GET() {
+  const raw = await getAuthenticatedUser(await headers());
+  const currentUser = requireSeksiUser(raw);
+  if (currentUser instanceof NextResponse) return currentUser;
 
   const { start, end } = getJakartaDayRange();
   const rows = await db
@@ -41,10 +52,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const currentUser = await getAuthenticatedUser(req.headers);
-  if (!currentUser || !currentUser.bidangId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const raw = await getAuthenticatedUser(await headers());
+  const currentUser = requireSeksiUser(raw);
+  if (currentUser instanceof NextResponse) return currentUser;
 
   const body = (await req.json().catch(() => null)) as
     | {

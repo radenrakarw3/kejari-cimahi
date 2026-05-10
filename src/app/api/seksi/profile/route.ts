@@ -1,20 +1,26 @@
+import { headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { user } from "@/lib/schema";
-import { getAuthenticatedUser } from "@/lib/authz";
+import { type AuthenticatedUser, getAuthenticatedUser } from "@/lib/authz";
 import { normalizePhone } from "@/lib/whatsapp";
 
-export async function GET(req: NextRequest) {
-  const currentUser = await getAuthenticatedUser(req.headers);
+type SeksiUser = AuthenticatedUser & { role: "bidang"; bidangId: number };
 
-  if (!currentUser) {
+function requireSeksiUser(
+  currentUser: AuthenticatedUser | null
+): NextResponse | SeksiUser {
+  if (!currentUser || currentUser.role !== "bidang" || currentUser.bidangId == null) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  return currentUser as SeksiUser;
+}
 
-  if (!currentUser.bidangId) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+export async function GET() {
+  const raw = await getAuthenticatedUser(await headers());
+  const currentUser = requireSeksiUser(raw);
+  if (currentUser instanceof NextResponse) return currentUser;
 
   return NextResponse.json({
     profile: {
@@ -28,15 +34,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const currentUser = await getAuthenticatedUser(req.headers);
-
-  if (!currentUser) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  if (!currentUser.bidangId) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const raw = await getAuthenticatedUser(await headers());
+  const currentUser = requireSeksiUser(raw);
+  if (currentUser instanceof NextResponse) return currentUser;
 
   const body = (await req.json()) as {
     name?: string;

@@ -106,7 +106,10 @@ export function SeksiDashboardClient({ bidangNama, reports }: SeksiDashboardClie
   useEffect(() => {
     const loadAppointments = async () => {
       try {
-        const res = await fetch("/api/bidang/appointments", { cache: "no-store" });
+        const res = await fetch("/api/seksi/appointments", {
+          cache: "no-store",
+          credentials: "include",
+        });
         if (!res.ok) throw new Error("Gagal memuat janji temu hari ini");
         const data = (await res.json()) as { data?: Appointment[] };
         setAppointments(data.data ?? []);
@@ -181,6 +184,7 @@ export function SeksiDashboardClient({ bidangNama, reports }: SeksiDashboardClie
 
         const res = await fetch(`/api/reports/${reportId}`, {
           method: "PATCH",
+          credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             status,
@@ -232,8 +236,9 @@ export function SeksiDashboardClient({ bidangNama, reports }: SeksiDashboardClie
           throw new Error("Lengkapi host, nama tamu, agenda, dan waktu janji temu");
         }
 
-        const res = await fetch("/api/bidang/appointments", {
+        const res = await fetch("/api/seksi/appointments", {
           method: "POST",
+          credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(appointmentForm),
         });
@@ -243,7 +248,10 @@ export function SeksiDashboardClient({ bidangNama, reports }: SeksiDashboardClie
           throw new Error(data?.error ?? "Gagal menyimpan janji temu");
         }
 
-        const reload = await fetch("/api/bidang/appointments", { cache: "no-store" });
+        const reload = await fetch("/api/seksi/appointments", {
+          cache: "no-store",
+          credentials: "include",
+        });
         const reloadData = (await reload.json().catch(() => ({ data: [] }))) as { data?: Appointment[] };
         setAppointments(reloadData.data ?? []);
         setAppointmentForm({

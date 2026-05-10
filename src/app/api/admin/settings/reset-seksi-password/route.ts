@@ -1,5 +1,6 @@
 import { eq, and } from "drizzle-orm";
 import { hashPassword } from "better-auth/crypto";
+import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/authz";
 import { hasAdminSettingsUnlock } from "@/lib/admin-settings-gate";
@@ -7,7 +8,7 @@ import { db } from "@/lib/db";
 import { account, user } from "@/lib/schema";
 
 export async function POST(req: Request) {
-  const current = await getAuthenticatedUser(req.headers);
+  const current = await getAuthenticatedUser(await headers());
   if (!current || current.role !== "admin") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

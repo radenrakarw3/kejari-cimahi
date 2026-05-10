@@ -14,8 +14,13 @@ export default async function SeksiLayout({
     redirect("/seksi/login");
   }
 
-  if (!currentUser.bidangId) {
+  /** Akun admin tetap ke panel admin, bukan area petugas seksi. */
+  if (currentUser.role === "admin") {
     redirect("/admin/dashboard");
+  }
+
+  if (currentUser.role !== "bidang" || !currentUser.bidangId) {
+    redirect("/seksi/login");
   }
 
   return (

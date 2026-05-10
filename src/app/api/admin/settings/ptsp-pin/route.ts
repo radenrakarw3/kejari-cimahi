@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { getAuthenticatedUser } from "@/lib/authz";
@@ -6,8 +7,8 @@ import { APP_KEY_PTSP_PIN } from "@/lib/app-settings-constants";
 import { db } from "@/lib/db";
 import { appSettings } from "@/lib/schema";
 
-export async function GET(req: Request) {
-  const user = await getAuthenticatedUser(req.headers);
+export async function GET() {
+  const user = await getAuthenticatedUser(await headers());
   if (!user || user.role !== "admin") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -28,7 +29,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const user = await getAuthenticatedUser(req.headers);
+  const user = await getAuthenticatedUser(await headers());
   if (!user || user.role !== "admin") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

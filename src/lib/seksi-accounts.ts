@@ -1,5 +1,6 @@
 /**
  * Akun login seksi: role DB tetap `"bidang"`, route UI `/seksi`.
+ * API petugas seksi: `/api/seksi/profile`, `/api/seksi/appointments`.
  * Email per seksi: seksi.{kodeLower}@kejari-cimahi.go.id
  *
  * Sandi:

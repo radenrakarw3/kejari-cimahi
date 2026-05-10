@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   KeyRound,
@@ -24,6 +25,7 @@ type SeksiRow = {
 };
 
 export default function PengaturanPage() {
+  const router = useRouter();
   const [unlocked, setUnlocked] = useState<boolean | null>(null);
   const [gatePin, setGatePin] = useState("");
   const [loadingGate, setLoadingGate] = useState(false);
@@ -44,22 +46,40 @@ export default function PengaturanPage() {
   const [newSeksiPw, setNewSeksiPw] = useState<Record<string, string>>({});
 
   const refreshStatus = useCallback(async () => {
-    const res = await fetch("/api/admin/settings/status", { cache: "no-store" });
+    const res = await fetch("/api/admin/settings/status", {
+      cache: "no-store",
+      credentials: "include",
+    });
     if (!res.ok) {
       setUnlocked(false);
+      if (res.status === 401) {
+        toast.error("Sesi tidak valid. Silakan masuk lagi sebagai admin.");
+        router.push("/admin/login");
+      }
       return;
     }
     const data = (await res.json()) as { unlocked?: boolean };
     setUnlocked(Boolean(data.unlocked));
-  }, []);
+  }, [router]);
 
   const loadPanelData = useCallback(async () => {
     setLoadingUsers(true);
     try {
       const [ptspRes, usersRes] = await Promise.all([
-        fetch("/api/admin/settings/ptsp-pin", { cache: "no-store" }),
-        fetch("/api/admin/settings/seksi-users", { cache: "no-store" }),
+        fetch("/api/admin/settings/ptsp-pin", {
+          cache: "no-store",
+          credentials: "include",
+        }),
+        fetch("/api/admin/settings/seksi-users", {
+          cache: "no-store",
+          credentials: "include",
+        }),
       ]);
+      if (ptspRes.status === 401 || usersRes.status === 401) {
+        toast.error("Sesi tidak valid. Silakan masuk lagi sebagai admin.");
+        router.push("/admin/login");
+        return;
+      }
       if (ptspRes.ok) {
         const p = (await ptspRes.json()) as { configuredInDatabase?: boolean };
         setPtspInDb(Boolean(p.configuredInDatabase));
@@ -72,7 +92,7 @@ export default function PengaturanPage() {
     } finally {
       setLoadingUsers(false);
     }
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     void refreshStatus();
@@ -88,11 +108,17 @@ export default function PengaturanPage() {
     try {
       const res = await fetch("/api/admin/settings/verify-pin", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pin: gatePin.trim() }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        if (res.status === 401) {
+          toast.error("Sesi tidak valid. Silakan masuk lagi sebagai admin.");
+          router.push("/admin/login");
+          return;
+        }
         toast.error(typeof data.error === "string" ? data.error : "Kode salah");
         return;
       }
@@ -105,7 +131,10 @@ export default function PengaturanPage() {
   };
 
   const lockAgain = async () => {
-    await fetch("/api/admin/settings/lock", { method: "POST" });
+    await fetch("/api/admin/settings/lock", {
+      method: "POST",
+      credentials: "include",
+    });
     setUnlocked(false);
     toast.message("Panel pengaturan dikunci lagi");
   };
@@ -156,10 +185,16 @@ export default function PengaturanPage() {
     try {
       const res = await fetch("/api/admin/settings/ptsp-pin", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pin: newPtspPin.trim() }),
       });
       if (!res.ok) {
+        if (res.status === 401) {
+          toast.error("Sesi tidak valid. Silakan masuk lagi sebagai admin.");
+          router.push("/admin/login");
+          return;
+        }
         const err = await res.json().catch(() => ({}));
         toast.error(typeof err.error === "string" ? err.error : "Gagal simpan");
         return;
@@ -182,10 +217,16 @@ export default function PengaturanPage() {
     try {
       const res = await fetch("/api/admin/settings/reset-seksi-password", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId, newPassword: pw }),
       });
       if (!res.ok) {
+        if (res.status === 401) {
+          toast.error("Sesi tidak valid. Silakan masuk lagi sebagai admin.");
+          router.push("/admin/login");
+          return;
+        }
         const err = await res.json().catch(() => ({}));
         toast.error(typeof err.error === "string" ? err.error : "Gagal reset");
         return;

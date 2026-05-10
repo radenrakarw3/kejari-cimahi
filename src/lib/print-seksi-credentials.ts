@@ -52,7 +52,20 @@ function main() {
     console.log("");
   }
 
-  console.log("Sembunyikan nilai sandi: npm run credentials:seksi -- --mask\n");
+  const baseUrl = (
+    process.env.NEXT_PUBLIC_APP_URL ??
+    process.env.BETTER_AUTH_URL ??
+    "http://localhost:3000"
+  ).replace(/\/$/, "");
+
+  console.log("Sembunyikan nilai sandi: npm run credentials:seksi -- --mask");
+  console.log("\n=== URL panel (sesuaikan domain jika production) ===\n");
+  console.log(`Admin SAHATE : ${baseUrl}/admin/login`);
+  console.log(`Petugas seksi: ${baseUrl}/seksi/login`);
+  console.log(
+    "\nJika akun admin tidak bisa masuk panel: jalankan perbaikan role di DB:\n" +
+      `  npm run create-admin -- --repair\n`
+  );
 }
 
 main();

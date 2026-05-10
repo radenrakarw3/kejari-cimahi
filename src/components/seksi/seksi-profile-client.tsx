@@ -29,8 +29,9 @@ export function SeksiProfileClient({ initialProfile }: SeksiProfileClientProps) 
     setSaving(true);
 
     try {
-      const res = await fetch("/api/bidang/profile", {
+      const res = await fetch("/api/seksi/profile", {
         method: "PATCH",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, phoneNumber }),
       });

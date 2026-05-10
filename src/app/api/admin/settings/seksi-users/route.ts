@@ -1,12 +1,13 @@
 import { eq } from "drizzle-orm";
+import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/authz";
 import { hasAdminSettingsUnlock } from "@/lib/admin-settings-gate";
 import { db } from "@/lib/db";
 import { bidang, user } from "@/lib/schema";
 
-export async function GET(req: Request) {
-  const current = await getAuthenticatedUser(req.headers);
+export async function GET() {
+  const current = await getAuthenticatedUser(await headers());
   if (!current || current.role !== "admin") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

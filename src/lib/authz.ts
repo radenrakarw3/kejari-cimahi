@@ -14,7 +14,8 @@ export type AuthenticatedUser = {
   bidangKode: string | null;
 };
 
-export async function getAuthenticatedUser(headers: Headers): Promise<AuthenticatedUser | null> {
+/** Gunakan `await headers()` dari `next/headers` di Route Handler agar cookie sesi terbaca konsisten (terutama App Router). */
+export async function getAuthenticatedUser(headers: HeadersInit): Promise<AuthenticatedUser | null> {
   const session = await auth.api.getSession({ headers });
   if (!session) return null;
 
