@@ -2,6 +2,12 @@ import { config } from "dotenv";
 import { asc, eq } from "drizzle-orm";
 import { db } from "./db";
 import { bidang, user } from "./schema";
+import {
+  adminEmailFromEnv,
+  resolveSeksiPassword,
+  seksiEmailForKode,
+  sharedBootstrapPassword,
+} from "./seksi-accounts";
 
 config({ path: ".env.local" });
 
@@ -17,6 +23,8 @@ config({ path: ".env.local" });
  *   SAHATE_BOOTSTRAP_PASSWORD="..." \
  *   npx tsx src/lib/bootstrap-accounts.ts
  *
+ * Sandi per seksi (opsional): SEKSI_PBIN_PASSWORD, SEKSI_PIDUM_PASSWORD, …
+ *
  * Pastikan di Railway: BETTER_AUTH_URL & NEXT_PUBLIC_APP_URL = https yang sama (tanpa slash akhir).
  */
 
@@ -27,13 +35,7 @@ const APP_URL = (
   ""
 ).replace(/\/$/, "");
 
-const PASSWORD = process.env.SAHATE_BOOTSTRAP_PASSWORD?.trim() ?? "";
-const ADMIN_EMAIL = (process.env.SAHATE_ADMIN_EMAIL ?? "admin@kejari-cimahi.go.id").toLowerCase().trim();
 const ADMIN_NAME = process.env.SAHATE_ADMIN_NAME ?? "Admin SAHATE Kejari Cimahi";
-
-function seksiEmailForKode(kode: string) {
-  return `seksi.${kode.toLowerCase()}@kejari-cimahi.go.id`;
-}
 
 async function signUp(email: string, password: string, name: string): Promise<{ ok: boolean; status: number; body: string }> {
   const res = await fetch(`${APP_URL}/api/auth/sign-up/email`, {
@@ -111,10 +113,14 @@ async function main() {
     console.error("Set BOOTSTRAP_APP_URL atau BETTER_AUTH_URL atau NEXT_PUBLIC_APP_URL (https://...).");
     process.exit(1);
   }
+
+  const PASSWORD = sharedBootstrapPassword(process.env);
   if (!PASSWORD || PASSWORD.length < 8) {
-    console.error("Set SAHATE_BOOTSTRAP_PASSWORD (minimal 8 karakter) di environment atau .env.local.");
+    console.error("Set SAHATE_BOOTSTRAP_PASSWORD (minimal 8 karakter) untuk admin atau sebagai sandi default seksi.");
     process.exit(1);
   }
+
+  const ADMIN_EMAIL = adminEmailFromEnv(process.env);
 
   const rows = await db
     .select({ id: bidang.id, kode: bidang.kode, nama: bidang.nama })
@@ -138,9 +144,16 @@ async function main() {
 
   for (const b of rows) {
     const email = seksiEmailForKode(b.kode);
+    const sekPwd = resolveSeksiPassword(b.kode, process.env);
+    if (!sekPwd || sekPwd.length < 8) {
+      console.error(
+        `❌ Sandi untuk ${b.kode} tidak valid (< 8). Set SAHATE_BOOTSTRAP_PASSWORD atau SEKSI_${b.kode}_PASSWORD`,
+      );
+      process.exit(1);
+    }
     await ensureUser({
       email,
-      password: PASSWORD,
+      password: sekPwd,
       name: b.nama,
       role: "bidang",
       bidangId: b.id,
@@ -149,7 +162,9 @@ async function main() {
 
   console.log("\nSelesai. Login admin: /admin/login");
   console.log("Login seksi: /seksi/login (bisa pakai kode seksi atau email).");
-  console.log(`Sandi awal (semua akun bootstrap): dari env SAHATE_BOOTSTRAP_PASSWORD\n`);
+  console.log("Sandi admin: SAHATE_BOOTSTRAP_PASSWORD");
+  console.log("Sandi seksi: SAHATE_BOOTSTRAP_PASSWORD atau SEKSI_<KODE>_PASSWORD per seksi.");
+  console.log("Daftar email/sandi (dari .env): npm run credentials:sekci\n");
   process.exit(0);
 }
 
