@@ -1,3 +1,6 @@
+# Railway: project "sahate-kejari" — ID 4d65a1c7-e12e-4e0c-94b6-e93b5d6075b7
+# CLI: dari folder ini jalankan `railway link` lalu pilih proyek itu, atau set env RAILWAY_PROJECT_ID saat deploy otomatis.
+
 [build]
 builder = "nixpacks"
 buildCommand = "npm run build"
