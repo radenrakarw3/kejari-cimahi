@@ -1,3 +1,5 @@
+import { existsSync } from "fs";
+import { resolve } from "path";
 import { config } from "dotenv";
 import {
   adminEmailFromEnv,
@@ -6,7 +8,13 @@ import {
   sharedBootstrapPassword,
 } from "./seksi-accounts";
 
-config({ path: ".env.local" });
+const root = process.cwd();
+for (const name of [".env.local", ".env"]) {
+  const p = resolve(root, name);
+  if (existsSync(p)) {
+    config({ path: p, override: true });
+  }
+}
 
 const mask =
   typeof process.argv[2] === "string" &&
