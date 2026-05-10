@@ -132,7 +132,27 @@ export default function LandingPage() {
           variants={stagger}
         >
           <div className="flex flex-col lg:flex-row items-center gap-10">
-            <div className="flex-1 text-center lg:text-left">
+            <div className="flex-1 text-center lg:text-left w-full min-w-0">
+              {/* Logo besar di atas badge — HP (di desktop tetap pakai kolom kanan) */}
+              <motion.div
+                variants={fadeUp}
+                className="mb-6 flex justify-center lg:hidden"
+              >
+                <div
+                  className="w-36 h-36 sm:w-40 sm:h-40 rounded-full flex items-center justify-center shadow-2xl p-4"
+                  style={{ backgroundColor: "rgba(240,180,41,0.08)", border: "2px solid rgba(240,180,41,0.25)" }}
+                >
+                  <Image
+                    src="/logo-kejari.svg"
+                    alt="Logo SAHATE Kejari Cimahi"
+                    width={120}
+                    height={120}
+                    className="object-contain drop-shadow-lg w-[7.5rem] h-[7.5rem] sm:w-[8.5rem] sm:h-[8.5rem]"
+                    priority
+                  />
+                </div>
+              </motion.div>
+
               <motion.div variants={fadeUp} className="mb-4">
                 <span
                   className="inline-flex items-center gap-2 px-3 py-1.5 rounded text-xs font-semibold uppercase tracking-wide"
