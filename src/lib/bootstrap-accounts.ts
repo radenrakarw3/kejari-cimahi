@@ -161,7 +161,7 @@ async function main() {
   }
 
   console.log("\nSelesai. Login admin: /admin/login");
-  console.log("Login seksi: /seksi/login (bisa pakai kode seksi atau email).");
+  console.log("Login seksi: /seksi/login (email + password akun seksi).");
   console.log("Sandi admin: SAHATE_BOOTSTRAP_PASSWORD");
   console.log("Sandi seksi: SAHATE_BOOTSTRAP_PASSWORD atau SEKSI_<KODE>_PASSWORD per seksi.");
   console.log("Daftar email/sandi (dari .env): npm run credentials:sekci\n");

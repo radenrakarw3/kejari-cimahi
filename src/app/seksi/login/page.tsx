@@ -11,39 +11,35 @@ import { Label } from "@/components/ui/label";
 
 export default function SeksiLoginPage() {
   const router = useRouter();
-  const [identifier, setIdentifier] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    const normalized = email.trim().toLowerCase();
+    if (!normalized) {
+      toast.error("Masukkan email");
+      return;
+    }
     setLoading(true);
     try {
-      const resolveRes = await fetch("/api/bidang/login-resolve", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ identifier }),
-      });
-
-      const resolveData = (await resolveRes.json().catch(() => null)) as {
-        email?: string;
-        error?: string;
-      } | null;
-
-      if (!resolveRes.ok || !resolveData?.email) {
-        throw new Error(resolveData?.error ?? "Kode seksi tidak ditemukan");
-      }
-
-      await signIn.email({ email: resolveData.email, password });
+      await signIn.email({ email: normalized, password });
       const meRes = await fetch("/api/auth/me", { cache: "no-store" });
       const meData = (await meRes.json().catch(() => null)) as {
         user?: { bidangId?: number | null };
       } | null;
 
-      router.push(meData?.user?.bidangId ? "/seksi" : "/admin/dashboard");
-    } catch {
-      toast.error("Email atau password tidak valid");
+      if (meData?.user?.bidangId) {
+        router.push("/seksi");
+        return;
+      }
+      toast.info("Akun ini untuk admin — mengalihkan ke panel admin.");
+      router.push("/admin/dashboard");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Login gagal";
+      toast.error(msg.includes("credential") || msg.includes("INVALID") ? "Email atau password tidak sesuai" : msg);
     } finally {
       setLoading(false);
     }
@@ -78,29 +74,28 @@ export default function SeksiLoginPage() {
                 Login Seksi
               </h1>
               <p className="text-xs mt-1" style={{ color: "#a8d5b5" }}>
-                Akses khusus tindak lanjut disposisi laporan warga oleh seksi terkait
+                Masuk dengan email akun seksi Anda (contoh: seksi.pidum@kejari-cimahi.go.id).
               </p>
             </div>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-5">
             <div className="space-y-1.5">
-              <Label style={{ color: "#f0b429" }}>Kode Seksi</Label>
+              <Label style={{ color: "#f0b429" }}>Email</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "#a8d5b5" }} />
                 <Input
-                  type="text"
-                  value={identifier}
-                  onChange={(e) => setIdentifier(e.target.value.toUpperCase())}
-                  placeholder="Contoh: PBIN"
+                  type="email"
+                  autoComplete="email"
+                  inputMode="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="seksi.pidum@kejari-cimahi.go.id"
                   required
                   className="pl-9 h-11 rounded-xl"
                   style={{ backgroundColor: "#145228", borderColor: "rgba(240,180,41,0.25)", color: "#c8e6d0" }}
                 />
               </div>
-              <p className="text-[11px]" style={{ color: "rgba(168,213,181,0.65)" }}>
-                Cukup masukkan kode seksi seperti `PBIN`, `INTEL`, `PIDUM`, `PIDSUS`, `DATUN`, atau `PAPBB`.
-              </p>
             </div>
 
             <div className="space-y-1.5">
@@ -109,6 +104,7 @@ export default function SeksiLoginPage() {
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "#a8d5b5" }} />
                 <Input
                   type={showPass ? "text" : "password"}
+                  autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"

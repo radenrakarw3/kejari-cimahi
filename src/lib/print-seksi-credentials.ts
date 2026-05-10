@@ -26,7 +26,7 @@ function main() {
   console.log(`Email     : ${adminEmail}`);
   console.log(`Password  : ${showSecret(adminPw)}  (SAHATE_BOOTSTRAP_PASSWORD)`);
 
-  console.log("\n=== SEKSI (login /seksi — bisa pakai kode atau email) ===\n");
+  console.log("\n=== SEKSI (login /seksi — email + password) ===\n");
 
   for (const row of seksiRowsWithEmails()) {
     const sekPw = resolveSeksiPassword(row.kode, process.env);
