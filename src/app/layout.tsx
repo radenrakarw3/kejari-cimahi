@@ -12,7 +12,7 @@ const poppins = Poppins({
 export const metadata: Metadata = {
   title: "SAHATE Kejari Cimahi",
   description:
-    "SAHATE Kejari Cimahi adalah Sistem Akses Hukum Terpadu dan Elektronik untuk layanan hukum, pengaduan masyarakat, informasi hukum, dan helpdesk terintegrasi WhatsApp.",
+    "SAHATE Kejari Cimahi adalah layanan pengaduan masyarakat dari Kejaksaan Negeri Cimahi untuk memudahkan warga menyampaikan laporan dan memantau tindak lanjutnya.",
   keywords: [
     "sahate kejari cimahi",
     "sistem akses hukum terpadu dan elektronik",

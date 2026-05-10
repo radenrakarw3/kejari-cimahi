@@ -27,7 +27,7 @@ export default function LoginPage() {
         user?: { bidangId?: number | null };
       } | null;
 
-      router.push(meData?.user?.bidangId ? "/bidang" : "/admin/dashboard");
+      router.push(meData?.user?.bidangId ? "/seksi" : "/admin/dashboard");
     } catch {
       toast.error("Email atau password salah");
     } finally {
@@ -91,7 +91,7 @@ export default function LoginPage() {
           <div className="px-7 py-8">
             <div className="text-center mb-6">
               <h2 className="text-lg font-bold" style={{ color: "#f5c518" }}>Masuk Panel Admin SAHATE</h2>
-              <p className="text-xs mt-1" style={{ color: "#a8d5b5" }}>Sahabat Hukum Terpadu Kejaksaan Negeri Cimahi</p>
+              <p className="text-xs mt-1" style={{ color: "#a8d5b5" }}>Pelayanan pengaduan masyarakat Kejaksaan Negeri Cimahi</p>
             </div>
 
             <form onSubmit={handleLogin} className="space-y-5">

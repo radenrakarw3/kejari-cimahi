@@ -1,32 +1,40 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { format } from "date-fns";
 import { id } from "date-fns/locale";
 import {
-  ArrowLeft, Globe, MessageSquare, Laptop, MapPin, Clock, Send,
+  ArrowLeft, Globe, MessageSquare, Laptop, MapPin, Clock,
   ChevronDown, FileText, User, Phone, Home, Building2,
   CheckCircle2,
+  Paperclip,
+  History,
+  Download,
+  ClipboardCheck,
+  Siren,
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { getPriorityConfig, getSlaState } from "@/lib/report-sla";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; next: string | null }> = {
   masuk:     { label: "Masuk",     color: "#f5c518", bg: "rgba(245,197,24,0.15)",    next: "diproses" },
   diproses:  { label: "Diproses",  color: "#f0b429", bg: "rgba(240,180,41,0.15)",    next: "selesai" },
   disposisi: { label: "Disposisi", color: "#86efac", bg: "rgba(134,239,172,0.12)",   next: "selesai" },
+  menunggu_data_tambahan: { label: "Menunggu Data Tambahan", color: "#f97316", bg: "rgba(249,115,22,0.12)", next: "diproses" },
   selesai:   { label: "Selesai",   color: "#4ade80", bg: "rgba(74,222,128,0.12)",    next: null },
 };
 
 type Report = {
   id: number; nomorLaporan: string; nama: string; nomorWa: string;
   kelurahan: string; rw: string; isiLaporan: string; status: string;
-  source: string;
+  source: string; priorityLevel: string; priorityReason: string | null; outcomeType: string | null; outcomeSummary: string | null; outcomeFollowUp: string | null;
+  additionalInfoRequest: string | null; additionalInfoRequestedAt: Date | null;
   createdAt: Date | null; updatedAt: Date | null;
   kategoriId: number | null; kategoriNama: string | null;
   kategoriWarna: string | null; kategoriKode: string | null; kategoriIcon: string | null;
@@ -37,9 +45,24 @@ type DisposisiItem = {
   bidangId: number; bidangNama: string | null; bidangKode: string | null;
 };
 
-type WaLog = {
-  id: number; direction: string; content: string;
-  phoneNumber: string; status: string; timestamp: Date | null;
+type Attachment = {
+  id: number;
+  originalName: string;
+  filePath: string;
+  mimeType: string;
+  sizeBytes: number;
+  createdAt: Date | null;
+};
+
+type AuditLog = {
+  id: number;
+  action: string;
+  actorType: string;
+  actorId: string | null;
+  actorName: string | null;
+  summary: string;
+  metadata: string | null;
+  createdAt: Date | null;
 };
 
 type Bidang = { id: number; nama: string; kode: string; deskripsi: string | null };
@@ -48,36 +71,57 @@ type Category = { id: number; nama: string; kode: string; warna: string; icon: s
 interface Props {
   report: Report;
   disposisiList: DisposisiItem[];
-  waLogsList: WaLog[];
   allBidang: Bidang[];
   allCategories: Category[];
+  attachments: Attachment[];
+  auditLogs: AuditLog[];
 }
 
 const cardStyle = { backgroundColor: "#0d4d22", border: "1px solid rgba(240,180,41,0.18)" };
 const inputStyle = { backgroundColor: "#145228", borderColor: "rgba(240,180,41,0.25)", color: "#c8e6d0" };
 const selectContentStyle = { backgroundColor: "#0a3d1a", borderColor: "rgba(240,180,41,0.2)" };
+const OUTCOME_OPTIONS = [
+  { value: "ditindaklanjuti", label: "Sudah Ditindaklanjuti" },
+  { value: "diteruskan", label: "Diteruskan ke Instansi/Layanan Lain" },
+  { value: "bukan_kewenangan", label: "Bukan Kewenangan Kejari" },
+  { value: "butuh_data_tambahan", label: "Butuh Data Tambahan" },
+  { value: "selesai_konsultasi", label: "Konsultasi Selesai" },
+];
+const PRIORITY_OPTIONS = [
+  { value: "rendah", label: "Rendah" },
+  { value: "normal", label: "Normal" },
+  { value: "penting", label: "Penting" },
+  { value: "mendesak", label: "Mendesak" },
+  { value: "kritis", label: "Kritis" },
+];
 
-export function LaporanDetailClient({ report, disposisiList, waLogsList, allBidang, allCategories }: Props) {
+function formatBytes(size: number) {
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+export function LaporanDetailClient({ report, disposisiList, allBidang, allCategories, attachments, auditLogs }: Props) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"info" | "disposisi" | "wa">("info");
+  const [activeTab, setActiveTab] = useState<"info" | "disposisi" | "audit">("info");
   const [status, setStatus] = useState(report.status);
   const [kategoriId, setKategoriId] = useState<string>(report.kategoriId?.toString() ?? "");
   const [disposisiOpen, setDisposisiOpen] = useState(false);
   const [selBidang, setSelBidang] = useState("");
   const [catatan, setCatatan] = useState("");
-  const [waMessage, setWaMessage] = useState("");
-  const [waLogs, setWaLogs] = useState<WaLog[]>(waLogsList);
+  const [priorityLevel, setPriorityLevel] = useState(report.priorityLevel ?? "normal");
+  const [priorityReason, setPriorityReason] = useState(report.priorityReason ?? "");
+  const [outcomeType, setOutcomeType] = useState(report.outcomeType ?? "");
+  const [outcomeSummary, setOutcomeSummary] = useState(report.outcomeSummary ?? "");
+  const [outcomeFollowUp, setOutcomeFollowUp] = useState(report.outcomeFollowUp ?? "");
+  const [additionalInfoMessage, setAdditionalInfoMessage] = useState(report.additionalInfoRequest ?? "");
   const [saving, setSaving] = useState(false);
-  const [sendingWa, setSendingWa] = useState(false);
-  const chatEndRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [waLogs]);
 
   const SourceIcon = report.source === "wa" ? MessageSquare : report.source === "offline" ? Laptop : Globe;
   const sourceColor = report.source === "wa" ? "#4ade80" : report.source === "offline" ? "#a8d5b5" : "#f0b429";
   const statusCfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.masuk;
+  const priorityConfig = getPriorityConfig(priorityLevel);
+  const slaState = getSlaState({ status, createdAt: report.createdAt, updatedAt: report.updatedAt });
 
   const patchReport = async (data: Record<string, unknown>) => {
     const res = await fetch(`/api/reports/${report.id}`, {
@@ -87,9 +131,32 @@ export function LaporanDetailClient({ report, disposisiList, waLogsList, allBida
   };
 
   const handleStatusChange = async (newStatus: string) => {
+    if (newStatus === "selesai") {
+      if (!outcomeType) {
+        toast.error("Pilih hasil penanganan terlebih dahulu");
+        return;
+      }
+
+      if (outcomeSummary.trim().length < 20) {
+        toast.error("Ringkasan hasil penanganan minimal 20 karakter");
+        return;
+      }
+    }
+
     setSaving(true);
     try {
-      await patchReport({ status: newStatus });
+      await patchReport({
+        status: newStatus,
+        ...(newStatus === "selesai"
+          ? {
+              outcome: {
+                type: outcomeType,
+                summary: outcomeSummary,
+                followUp: outcomeFollowUp,
+              },
+            }
+          : {}),
+      });
       setStatus(newStatus);
       toast.success("Status diperbarui");
       router.refresh();
@@ -104,8 +171,21 @@ export function LaporanDetailClient({ report, disposisiList, waLogsList, allBida
     router.refresh();
   };
 
+  const handlePrioritySave = async () => {
+    setSaving(true);
+    try {
+      await patchReport({ priority: { level: priorityLevel, reason: priorityReason } });
+      toast.success("Prioritas laporan diperbarui");
+      router.refresh();
+    } catch {
+      toast.error("Gagal memperbarui prioritas");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleDisposisi = async () => {
-    if (!selBidang) return toast.error("Pilih bidang");
+    if (!selBidang) return toast.error("Pilih seksi");
     setSaving(true);
     try {
       await patchReport({ disposisi: { bidangId: parseInt(selBidang), catatan } });
@@ -117,29 +197,29 @@ export function LaporanDetailClient({ report, disposisiList, waLogsList, allBida
     finally { setSaving(false); }
   };
 
-  const handleSendWa = async () => {
-    if (!waMessage.trim()) return;
-    setSendingWa(true);
+  const handleRequestMoreInfo = async () => {
+    if (additionalInfoMessage.trim().length < 15) {
+      toast.error("Permintaan data tambahan minimal 15 karakter");
+      return;
+    }
+
+    setSaving(true);
     try {
-      const res = await fetch("/api/whatsapp/send", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phoneNumber: report.nomorWa, message: waMessage, reportId: report.id }),
-      });
-      if (!res.ok) throw new Error("Gagal");
-      setWaLogs((prev) => [...prev, {
-        id: Date.now(), direction: "outbound", content: waMessage,
-        phoneNumber: report.nomorWa, status: "sent", timestamp: new Date(),
-      }]);
-      setWaMessage("");
-      toast.success("Pesan terkirim");
-    } catch { toast.error("Gagal mengirim pesan WA"); }
-    finally { setSendingWa(false); }
+      await patchReport({ requestMoreInfo: { message: additionalInfoMessage } });
+      setStatus("menunggu_data_tambahan");
+      toast.success("Permintaan data tambahan dikirim ke pelapor");
+      router.refresh();
+    } catch {
+      toast.error("Gagal mengirim permintaan data tambahan");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const TABS: Array<{ key: "info" | "disposisi" | "wa"; label: string; icon: React.ElementType; badge?: number }> = [
+  const TABS: Array<{ key: "info" | "disposisi" | "audit"; label: string; icon: React.ElementType; badge?: number }> = [
     { key: "info", label: "Info Laporan", icon: FileText },
     { key: "disposisi", label: "Disposisi", icon: Building2, badge: disposisiList.length },
-    { key: "wa", label: "Chat WA", icon: MessageSquare, badge: waLogs.filter(l => l.direction === "inbound").length },
+    { key: "audit", label: "Audit Trail", icon: History, badge: auditLogs.length },
   ];
 
   return (
@@ -172,6 +252,14 @@ export function LaporanDetailClient({ report, disposisiList, waLogsList, allBida
           <div className="text-sm" style={{ color: "#a8d5b5" }}>
             {report.nama} · {report.kelurahan} RW {report.rw} ·{" "}
             {report.createdAt ? format(new Date(report.createdAt), "dd MMMM yyyy, HH:mm", { locale: id }) : "—"}
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full" style={{ color: priorityConfig.color, backgroundColor: priorityConfig.bg }}>
+              Prioritas {priorityConfig.label}
+            </span>
+            <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full" style={{ color: slaState.color, backgroundColor: slaState.bg }}>
+              {slaState.label}
+            </span>
           </div>
         </div>
 
@@ -275,6 +363,43 @@ export function LaporanDetailClient({ report, disposisiList, waLogsList, allBida
                   </SelectContent>
                 </Select>
               </div>
+
+              <div className="space-y-3 rounded-xl p-4" style={{ backgroundColor: "#145228", border: "1px solid rgba(240,180,41,0.12)" }}>
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider" style={{ color: "#f0b429" }}>
+                  <Siren className="w-3.5 h-3.5" />
+                  Prioritas & SLA
+                </div>
+                <div className="space-y-2">
+                  <div className="text-xs" style={{ color: "rgba(168,213,181,0.6)" }}>Level prioritas</div>
+                  <Select value={priorityLevel} onValueChange={(v) => setPriorityLevel(v ?? "normal")}>
+                    <SelectTrigger className="h-10 rounded-xl text-sm" style={inputStyle}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent style={selectContentStyle}>
+                      {PRIORITY_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value} style={{ color: "#c8e6d0" }}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Textarea
+                  value={priorityReason}
+                  onChange={(e) => setPriorityReason(e.target.value)}
+                  placeholder="Alasan prioritas, misalnya ada potensi ancaman, korban rentan, atau tenggat cepat."
+                  className="rounded-xl min-h-[84px] resize-none text-sm placeholder:opacity-40"
+                  style={inputStyle}
+                />
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-xs" style={{ color: "#a8d5b5" }}>
+                    SLA saat ini: <span style={{ color: slaState.color }}>{slaState.label}</span>
+                  </div>
+                  <Button onClick={handlePrioritySave} disabled={saving} className="rounded-xl text-xs" style={{ backgroundColor: "#f0b429", color: "#071f0d" }}>
+                    Simpan Prioritas
+                  </Button>
+                </div>
+              </div>
             </div>
 
             {/* Right: isi laporan */}
@@ -293,6 +418,121 @@ export function LaporanDetailClient({ report, disposisiList, waLogsList, allBida
                   ? format(new Date(report.createdAt), "dd MMMM yyyy 'pukul' HH:mm", { locale: id })
                   : "—"}
               </div>
+
+              <div className="mt-5">
+                <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider" style={{ color: "#f0b429" }}>
+                  <ClipboardCheck className="w-3.5 h-3.5" />
+                  Hasil Penanganan
+                </div>
+                <div className="space-y-3 rounded-xl p-4" style={{ backgroundColor: "#145228", border: "1px solid rgba(240,180,41,0.12)" }}>
+                  <div className="space-y-2">
+                    <div className="text-xs" style={{ color: "rgba(168,213,181,0.6)" }}>Jenis hasil</div>
+                    <Select value={outcomeType} onValueChange={(v) => setOutcomeType(v ?? "")}>
+                      <SelectTrigger className="h-10 rounded-xl text-sm" style={inputStyle}>
+                        <SelectValue placeholder="Pilih hasil penanganan..." />
+                      </SelectTrigger>
+                      <SelectContent style={selectContentStyle}>
+                        {OUTCOME_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value} style={{ color: "#c8e6d0" }}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="text-xs" style={{ color: "rgba(168,213,181,0.6)" }}>Ringkasan hasil</div>
+                    <Textarea
+                      value={outcomeSummary}
+                      onChange={(e) => setOutcomeSummary(e.target.value)}
+                      placeholder="Contoh: Laporan telah diverifikasi dan diteruskan ke seksi terkait untuk tindak lanjut lapangan."
+                      className="rounded-xl min-h-[96px] resize-none text-sm placeholder:opacity-40"
+                      style={inputStyle}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="text-xs" style={{ color: "rgba(168,213,181,0.6)" }}>Catatan tindak lanjut lanjutan</div>
+                    <Textarea
+                      value={outcomeFollowUp}
+                      onChange={(e) => setOutcomeFollowUp(e.target.value)}
+                      placeholder="Opsional. Contoh: menunggu dokumen tambahan dari pelapor atau diarahkan ke instansi lain."
+                      className="rounded-xl min-h-[84px] resize-none text-sm placeholder:opacity-40"
+                      style={inputStyle}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-5">
+                <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider" style={{ color: "#f0b429" }}>
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  Permintaan Data Tambahan
+                </div>
+                <div className="space-y-3 rounded-xl p-4" style={{ backgroundColor: "#145228", border: "1px solid rgba(240,180,41,0.12)" }}>
+                  <Textarea
+                    value={additionalInfoMessage}
+                    onChange={(e) => setAdditionalInfoMessage(e.target.value)}
+                    placeholder="Contoh: Mohon kirim foto bukti transaksi, kronologi waktu kejadian, atau identitas pihak yang dilaporkan."
+                    className="rounded-xl min-h-[96px] resize-none text-sm placeholder:opacity-40"
+                    style={inputStyle}
+                  />
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="text-xs" style={{ color: "#a8d5b5" }}>
+                      {report.additionalInfoRequestedAt
+                        ? `Terakhir diminta ${format(new Date(report.additionalInfoRequestedAt), "dd MMM yyyy, HH:mm", { locale: id })}`
+                        : "Belum pernah meminta data tambahan"}
+                    </div>
+                    <Button
+                      onClick={handleRequestMoreInfo}
+                      disabled={saving || report.nomorWa.trim() === ""}
+                      className="rounded-xl text-xs"
+                      style={{ backgroundColor: "rgba(249,115,22,0.18)", color: "#fdba74", border: "1px solid rgba(249,115,22,0.24)" }}
+                    >
+                      Kirim Permintaan
+                    </Button>
+                  </div>
+                  {report.nomorWa.trim() === "" && (
+                    <div className="text-xs" style={{ color: "#fca5a5" }}>
+                      Laporan anonim atau tanpa nomor WhatsApp tidak bisa dimintai data tambahan lewat sistem.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-5">
+                <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider" style={{ color: "#f0b429" }}>
+                  <Paperclip className="w-3.5 h-3.5" />
+                  Lampiran Bukti
+                </div>
+                {attachments.length === 0 ? (
+                  <div className="rounded-xl px-4 py-4 text-sm" style={{ backgroundColor: "#145228", color: "#a8d5b5" }}>
+                    Belum ada lampiran bukti pada laporan ini.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {attachments.map((attachment) => (
+                      <a
+                        key={attachment.id}
+                        href={attachment.filePath}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center justify-between rounded-xl px-4 py-3 transition-colors hover:bg-[rgba(240,180,41,0.05)]"
+                        style={{ backgroundColor: "#145228", border: "1px solid rgba(240,180,41,0.12)" }}
+                      >
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-semibold" style={{ color: "#c8e6d0" }}>{attachment.originalName}</div>
+                          <div className="text-xs" style={{ color: "rgba(168,213,181,0.6)" }}>
+                            {attachment.mimeType} · {formatBytes(attachment.sizeBytes)}
+                          </div>
+                        </div>
+                        <Download className="w-4 h-4 flex-shrink-0" style={{ color: "#f0b429" }} />
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -309,7 +549,7 @@ export function LaporanDetailClient({ report, disposisiList, waLogsList, allBida
                   className="rounded-xl text-xs font-semibold"
                   style={{ backgroundColor: "rgba(240,180,41,0.12)", color: "#f0b429", border: "1px solid rgba(240,180,41,0.25)" }}
                 >
-                  {disposisiOpen ? "Tutup" : "Disposisikan ke Bidang"}
+                  {disposisiOpen ? "Tutup" : "Disposisikan ke Seksi"}
                   <ChevronDown className={`w-3.5 h-3.5 ml-1.5 transition-transform ${disposisiOpen ? "rotate-180" : ""}`} />
                 </Button>
               </div>
@@ -322,7 +562,7 @@ export function LaporanDetailClient({ report, disposisiList, waLogsList, allBida
                 >
                   <Select value={selBidang} onValueChange={(v) => setSelBidang(v ?? "")}>
                     <SelectTrigger className="h-10 rounded-xl" style={inputStyle}>
-                      <SelectValue placeholder="Pilih bidang..." />
+                      <SelectValue placeholder="Pilih seksi..." />
                     </SelectTrigger>
                     <SelectContent style={selectContentStyle}>
                       {allBidang.map((b) => (
@@ -400,72 +640,42 @@ export function LaporanDetailClient({ report, disposisiList, waLogsList, allBida
           </div>
         )}
 
-        {/* ─── WA CHAT TAB ──────────────────────────────────── */}
-        {activeTab === "wa" && (
-          <div className="space-y-4">
-            {/* Chat messages */}
-            <div className="rounded-2xl overflow-hidden" style={cardStyle}>
-              <div
-                className="px-4 py-3 border-b flex items-center gap-2"
-                style={{ borderColor: "rgba(240,180,41,0.12)" }}
-              >
-                <MessageSquare className="w-4 h-4" style={{ color: "#4ade80" }} />
-                <span className="text-sm font-semibold" style={{ color: "#f5c518" }}>
-                  Chat WA — {report.nomorWa}
-                </span>
+        {activeTab === "audit" && (
+          <div className="space-y-3">
+            {auditLogs.length === 0 ? (
+              <div className="rounded-2xl py-12 text-center text-sm" style={{ ...cardStyle, color: "#a8d5b5" }}>
+                Belum ada audit trail
               </div>
-              <div className="h-72 overflow-y-auto p-4 space-y-3">
-                {waLogs.length === 0 ? (
-                  <div className="h-full flex items-center justify-center text-sm" style={{ color: "#a8d5b5" }}>
-                    Belum ada riwayat pesan
-                  </div>
-                ) : (
-                  waLogs.map((msg) => (
-                    <div key={msg.id} className={`flex ${msg.direction === "outbound" ? "justify-end" : "justify-start"}`}>
-                      <div
-                        className="max-w-[75%] rounded-2xl px-4 py-2.5 text-sm"
-                        style={
-                          msg.direction === "outbound"
-                            ? { backgroundColor: "#f0b429", color: "#071f0d", borderRadius: "18px 4px 18px 18px" }
-                            : { backgroundColor: "#145228", color: "#c8e6d0", borderRadius: "4px 18px 18px 18px" }
-                        }
-                      >
-                        <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
-                        <div
-                          className="text-[10px] mt-1"
-                          style={{ color: msg.direction === "outbound" ? "rgba(7,31,13,0.6)" : "rgba(168,213,181,0.5)" }}
-                        >
-                          {msg.timestamp ? format(new Date(msg.timestamp), "HH:mm") : "—"}
-                        </div>
+            ) : (
+              auditLogs.map((log, index) => (
+                <div key={log.id} className="rounded-2xl p-4" style={cardStyle}>
+                  <div className="flex items-start gap-3">
+                    <div
+                      className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+                      style={{ backgroundColor: "rgba(240,180,41,0.15)" }}
+                    >
+                      <History className="w-4 h-4" style={{ color: "#f0b429" }} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="text-sm font-semibold" style={{ color: "#c8e6d0" }}>{log.summary}</div>
+                        {index === 0 && (
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ color: "#4ade80", backgroundColor: "rgba(74,222,128,0.12)" }}>
+                            Terbaru
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-1 text-xs" style={{ color: "#a8d5b5" }}>
+                        {log.actorName ?? "Sistem"} · {log.actorType}
+                      </div>
+                      <div className="mt-1 text-xs" style={{ color: "rgba(168,213,181,0.5)" }}>
+                        {log.createdAt ? format(new Date(log.createdAt), "dd MMM yyyy, HH:mm", { locale: id }) : "—"}
                       </div>
                     </div>
-                  ))
-                )}
-                <div ref={chatEndRef} />
-              </div>
-            </div>
-
-            {/* Message input */}
-            <div className="rounded-2xl p-4" style={cardStyle}>
-              <Textarea
-                placeholder="Ketik pesan WhatsApp..."
-                value={waMessage}
-                onChange={(e) => setWaMessage(e.target.value)}
-                className="rounded-xl min-h-[80px] resize-none mb-3 text-sm placeholder:opacity-40"
-                style={inputStyle}
-              />
-              <div className="flex gap-2">
-                <Button
-                  onClick={handleSendWa}
-                  disabled={sendingWa || !waMessage.trim()}
-                  className="ml-auto rounded-xl text-xs gap-1.5 font-bold"
-                  style={{ backgroundColor: "#f0b429", color: "#071f0d" }}
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  {sendingWa ? "Mengirim..." : "Kirim WA"}
-                </Button>
-              </div>
-            </div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         )}
       </motion.div>

@@ -5,11 +5,13 @@ import { eq, desc } from "drizzle-orm";
 import { ExternalLink, Globe, MessageSquare, Laptop, MapPin } from "lucide-react";
 import { format } from "date-fns";
 import { id } from "date-fns/locale";
+import { getPriorityConfig, getSlaState } from "@/lib/report-sla";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   masuk:     { label: "Masuk",     color: "#f5c518", bg: "rgba(245,197,24,0.15)" },
   diproses:  { label: "Diproses",  color: "#f0b429", bg: "rgba(240,180,41,0.15)" },
   disposisi: { label: "Disposisi", color: "#86efac", bg: "rgba(134,239,172,0.12)" },
+  menunggu_data_tambahan: { label: "Menunggu Data", color: "#f97316", bg: "rgba(249,115,22,0.12)" },
   selesai:   { label: "Selesai",   color: "#4ade80", bg: "rgba(74,222,128,0.12)" },
 };
 
@@ -22,7 +24,9 @@ export async function RecentReports() {
       kelurahan: reports.kelurahan,
       status: reports.status,
       source: reports.source,
+      priorityLevel: reports.priorityLevel,
       createdAt: reports.createdAt,
+      updatedAt: reports.updatedAt,
       kategoriNama: categories.nama,
       kategoriWarna: categories.warna,
     })
@@ -52,6 +56,8 @@ export async function RecentReports() {
             const st = STATUS_CONFIG[report.status] ?? STATUS_CONFIG.masuk;
             const SourceIcon = report.source === "wa" ? MessageSquare : report.source === "offline" ? Laptop : Globe;
             const sourceColor = report.source === "wa" ? "#4ade80" : report.source === "offline" ? "#a8d5b5" : "#f0b429";
+            const priorityConfig = getPriorityConfig(report.priorityLevel);
+            const slaState = getSlaState({ status: report.status, createdAt: report.createdAt, updatedAt: report.updatedAt });
             return (
               <Link
                 key={report.id}
@@ -65,6 +71,9 @@ export async function RecentReports() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-0.5">
                     <span className="font-medium text-sm truncate" style={{ color: "#c8e6d0" }}>{report.nama}</span>
+                    <span className="hidden md:inline-flex text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ color: priorityConfig.color, backgroundColor: priorityConfig.bg }}>
+                      {priorityConfig.label}
+                    </span>
                     <span className="text-xs font-mono hidden sm:inline" style={{ color: "rgba(168,213,181,0.5)" }}>
                       {report.nomorLaporan}
                     </span>
@@ -87,6 +96,13 @@ export async function RecentReports() {
                   style={{ color: st.color, backgroundColor: st.bg }}
                 >
                   {st.label}
+                </span>
+
+                <span
+                  className="hidden lg:inline-flex text-[11px] font-semibold px-2.5 py-1 rounded-full flex-shrink-0"
+                  style={{ color: slaState.color, backgroundColor: slaState.bg }}
+                >
+                  {slaState.label}
                 </span>
 
                 <div className="text-xs flex-shrink-0 hidden sm:block" style={{ color: "rgba(168,213,181,0.5)" }}>

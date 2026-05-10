@@ -14,6 +14,7 @@ const STATUS_OPTIONS = [
   { value: "masuk", label: "Masuk" },
   { value: "diproses", label: "Diproses" },
   { value: "disposisi", label: "Disposisi" },
+  { value: "menunggu_data_tambahan", label: "Menunggu Data Tambahan" },
   { value: "selesai", label: "Selesai" },
 ];
 
@@ -22,6 +23,15 @@ const SOURCE_OPTIONS = [
   { value: "web", label: "Website" },
   { value: "wa", label: "WhatsApp" },
   { value: "offline", label: "Offline" },
+];
+
+const PRIORITY_OPTIONS = [
+  { value: "all", label: "Semua Prioritas" },
+  { value: "rendah", label: "Rendah" },
+  { value: "normal", label: "Normal" },
+  { value: "penting", label: "Penting" },
+  { value: "mendesak", label: "Mendesak" },
+  { value: "kritis", label: "Kritis" },
 ];
 
 interface LaporanFiltersProps {
@@ -69,7 +79,7 @@ export function LaporanFilters({ initialParams }: LaporanFiltersProps) {
       <div className="relative flex-1 min-w-[200px] max-w-sm">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "#a8d5b5" }} />
         <Input
-          placeholder="Cari nama pelapor..."
+          placeholder="Cari nama, nomor laporan, atau nomor WA..."
           value={searchVal}
           onChange={(e) => { setSearchVal(e.target.value); handleSearch(e.target.value); }}
           className="pl-9 pr-9 h-10 rounded-xl text-sm placeholder:opacity-40"
@@ -105,6 +115,17 @@ export function LaporanFilters({ initialParams }: LaporanFiltersProps) {
         </SelectTrigger>
         <SelectContent style={selectContentStyle}>
           {SOURCE_OPTIONS.map((o) => (
+            <SelectItem key={o.value} value={o.value} style={{ color: "#c8e6d0" }}>{o.label}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <Select value={initialParams.priority ?? "all"} onValueChange={(v) => updateParams({ priority: v ?? undefined })}>
+        <SelectTrigger className="w-44 h-10 rounded-xl text-sm" style={inputStyle}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent style={selectContentStyle}>
+          {PRIORITY_OPTIONS.map((o) => (
             <SelectItem key={o.value} value={o.value} style={{ color: "#c8e6d0" }}>{o.label}</SelectItem>
           ))}
         </SelectContent>

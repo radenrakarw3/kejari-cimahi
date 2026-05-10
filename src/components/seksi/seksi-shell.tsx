@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Building2, ClipboardCheck, LogOut, Menu, Settings2, X } from "lucide-react";
 import { signOut } from "@/lib/auth-client";
 
-interface BidangShellProps {
+interface SeksiShellProps {
   children: React.ReactNode;
   user: {
     name: string;
@@ -16,17 +16,17 @@ interface BidangShellProps {
   };
 }
 
-const NAV_ITEMS = [{ href: "/bidang", label: "Disposisi Masuk", icon: ClipboardCheck }];
-const EXTRA_NAV_ITEMS = [{ href: "/bidang/profil", label: "Profil Bidang", icon: Settings2 }];
+const NAV_ITEMS = [{ href: "/seksi", label: "Disposisi Masuk", icon: ClipboardCheck }];
+const EXTRA_NAV_ITEMS = [{ href: "/seksi/profil", label: "Profil Seksi", icon: Settings2 }];
 
-export function BidangShell({ children, user }: BidangShellProps) {
+export function SeksiShell({ children, user }: SeksiShellProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const handleLogout = async () => {
     await signOut();
-    router.push("/bidang/login");
+    router.push("/seksi/login");
   };
 
   return (
@@ -56,10 +56,10 @@ export function BidangShell({ children, user }: BidangShellProps) {
             </div>
             <div className="min-w-0 flex-1">
               <div className="text-xs font-semibold tracking-[0.24em] uppercase" style={{ color: "#f0b429" }}>
-                Portal Bidang
+                Portal Seksi
               </div>
               <div className="text-base font-bold mt-1 leading-tight" style={{ color: "#f5c518" }}>
-                {user.bidangNama ?? "Bidang"}
+                {user.bidangNama ?? "Seksi"}
               </div>
               <div className="text-xs mt-1" style={{ color: "rgba(168,213,181,0.7)" }}>
                 {user.bidangKode ?? "Akses petugas"}
@@ -126,7 +126,7 @@ export function BidangShell({ children, user }: BidangShellProps) {
             <Menu className="w-5 h-5" />
           </button>
           <div className="text-sm font-semibold" style={{ color: "#f0b429" }}>
-            {user.bidangKode ?? "Bidang"}
+            {user.bidangKode ?? "Seksi"}
           </div>
           <div className="w-5" />
         </header>

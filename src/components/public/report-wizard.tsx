@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ChangeEvent } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -19,7 +19,9 @@ import { KELURAHAN_CIMAHI, RW_OPTIONS } from "@/lib/kelurahan";
 import {
   ArrowLeft,
   ArrowRight,
+  Check,
   Send,
+  Paperclip,
   User,
   Phone,
   MapPin,
@@ -29,17 +31,30 @@ import {
   CheckCircle2,
   ShieldCheck,
   Sparkles,
+  X,
+  type LucideIcon,
 } from "lucide-react";
 import { z } from "zod";
 
 interface FormData {
+  isAnonymous: boolean | null;
   nama: string;
   nomorWa: string;
+  waVerificationId: string;
   kelurahan: string;
   rw: string;
   kategoriId: string;
   isiLaporan: string;
 }
+
+type StepField = "identityType" | "nama" | "nomorWa" | "kelurahan" | "rw" | "kategoriId" | "isiLaporan" | "review";
+
+type StepConfig = {
+  title: string;
+  desc: string;
+  icon: LucideIcon;
+  field: StepField;
+};
 
 type CategoryOption = {
   id: number;
@@ -48,32 +63,37 @@ type CategoryOption = {
   warna: string;
 };
 
-const stepSchemas = [
-  z.object({ nama: z.string().min(3, "Nama minimal 3 karakter") }),
-  z.object({
+const stepSchemas: Record<Exclude<StepField, "review">, z.ZodTypeAny> = {
+  identityType: z.object({ isAnonymous: z.boolean() }),
+  nama: z.object({ nama: z.string().min(3, "Nama minimal 3 karakter") }),
+  nomorWa: z.object({
     nomorWa: z
       .string()
       .regex(/^(08|628)\d{8,12}$/, "Format: 08123456789 atau 628123456789"),
   }),
-  z.object({ kelurahan: z.string().min(1, "Pilih kelurahan") }),
-  z.object({ rw: z.string().min(1, "Pilih RW") }),
-  z.object({ kategoriId: z.string().min(1, "Pilih kategori laporan") }),
-  z.object({
+  kelurahan: z.object({ kelurahan: z.string().min(1, "Pilih kelurahan") }),
+  rw: z.object({ rw: z.string().min(1, "Pilih RW") }),
+  kategoriId: z.object({ kategoriId: z.string().min(1, "Pilih kategori laporan") }),
+  isiLaporan: z.object({
     isiLaporan: z
       .string()
       .min(20, "Minimal 20 karakter")
       .max(2000, "Maksimal 2000 karakter"),
   }),
+};
+
+const BASE_STEPS: StepConfig[] = [
+  { title: "Jenis Pelaporan", desc: "Pilih apakah Anda ingin melapor anonim atau dengan identitas", icon: ShieldCheck, field: "identityType" },
+  { title: "Kelurahan", desc: "Di kelurahan mana Anda tinggal?", icon: MapPin, field: "kelurahan" },
+  { title: "RW", desc: "RW berapa lokasi Anda?", icon: Home, field: "rw" },
+  { title: "Kategori Laporan", desc: "Pilih jenis laporan Anda", icon: FileText, field: "kategoriId" },
+  { title: "Isi Laporan", desc: "Ceritakan laporan Anda secara detail", icon: FileText, field: "isiLaporan" },
+  { title: "Review & Kirim", desc: "Periksa kembali sebelum mengirim", icon: Eye, field: "review" },
 ];
 
-const STEPS = [
-  { title: "Nama Lengkap", desc: "Siapa nama Anda?", icon: User },
-  { title: "Nomor WhatsApp", desc: "Nomor untuk menerima konfirmasi", icon: Phone },
-  { title: "Kelurahan", desc: "Di kelurahan mana Anda tinggal?", icon: MapPin },
-  { title: "RW", desc: "RW berapa lokasi Anda?", icon: Home },
-  { title: "Kategori Laporan", desc: "Pilih jenis laporan Anda", icon: FileText },
-  { title: "Isi Laporan", desc: "Ceritakan laporan Anda secara detail", icon: FileText },
-  { title: "Review & Kirim", desc: "Periksa kembali sebelum mengirim", icon: Eye },
+const IDENTITY_STEPS: StepConfig[] = [
+  { title: "Nama Lengkap", desc: "Siapa nama Anda?", icon: User, field: "nama" },
+  { title: "Nomor WhatsApp", desc: "Nomor untuk menerima konfirmasi", icon: Phone, field: "nomorWa" },
 ];
 
 const slideVariants = {
@@ -102,6 +122,17 @@ const selectPopupStyle = {
   backdropFilter: "blur(14px)",
 };
 
+const MAX_ATTACHMENTS = 5;
+const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
+const ALLOWED_ATTACHMENT_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+];
+
 export function ReportWizard() {
   const router = useRouter();
   const [categories, setCategories] = useState<CategoryOption[]>([]);
@@ -110,17 +141,32 @@ export function ReportWizard() {
   const [direction, setDirection] = useState(1);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpVerified, setOtpVerified] = useState(false);
+  const [otpResendIn, setOtpResendIn] = useState(0);
+  const [attachments, setAttachments] = useState<File[]>([]);
   const [formData, setFormData] = useState<FormData>({
+    isAnonymous: null,
     nama: "",
     nomorWa: "",
+    waVerificationId: "",
     kelurahan: "",
     rw: "",
     kategoriId: "",
     isiLaporan: "",
   });
 
-  const isReviewStep = step === 6;
-  const progress = (step / (STEPS.length - 1)) * 100;
+  const steps = [
+    BASE_STEPS[0],
+    ...(formData.isAnonymous ? [] : IDENTITY_STEPS),
+    ...BASE_STEPS.slice(1),
+  ];
+  const currentStep = steps[step] ?? steps[0];
+  const isReviewStep = currentStep?.field === "review";
+  const progress = (step / (steps.length - 1)) * 100;
 
   useEffect(() => {
     const loadCategories = async () => {
@@ -138,24 +184,143 @@ export function ReportWizard() {
     loadCategories();
   }, []);
 
+  useEffect(() => {
+    if (otpResendIn <= 0) return;
+    const timer = window.setInterval(() => {
+      setOtpResendIn((prev) => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [otpResendIn]);
+
+  const resetOtpState = () => {
+    setOtpCode("");
+    setOtpSent(false);
+    setOtpVerified(false);
+    setOtpResendIn(0);
+    setFormData((prev) => ({ ...prev, waVerificationId: "" }));
+  };
+
   const updateField = (field: keyof FormData, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+    if (field === "nomorWa") {
+      setOtpCode("");
+      setOtpSent(false);
+      setOtpVerified(false);
+      setOtpResendIn(0);
+    }
+    setFormData((prev) => ({
+      ...prev,
+      [field]: value,
+      ...(field === "nomorWa" ? { waVerificationId: "" } : {}),
+    }));
     setErrors((prev) => ({ ...prev, [field]: "" }));
+  };
+
+  const chooseIdentityType = (isAnonymous: boolean) => {
+    setFormData((prev) => ({
+      ...prev,
+      isAnonymous,
+      nama: isAnonymous ? "" : prev.nama,
+      nomorWa: isAnonymous ? "" : prev.nomorWa,
+      waVerificationId: isAnonymous ? "" : prev.waVerificationId,
+    }));
+    if (isAnonymous) {
+      resetOtpState();
+    }
+    setErrors({});
   };
 
   const validateStep = (): boolean => {
     if (isReviewStep) return true;
-    const schema = stepSchemas[step];
-    const fieldMap: (keyof FormData)[] = ["nama", "nomorWa", "kelurahan", "rw", "kategoriId", "isiLaporan"];
-    const key = fieldMap[step];
-    const result = schema.safeParse({ [key]: formData[key] });
+    const field = currentStep.field;
+    const schema = stepSchemas[field as Exclude<StepField, "review">];
+    const payload =
+      field === "identityType"
+        ? { isAnonymous: formData.isAnonymous }
+        : { [field]: formData[field as keyof FormData] };
+    const result = schema.safeParse(payload);
+
     if (!result.success) {
       const fieldErrors = result.error.flatten().fieldErrors as Record<string, string[] | undefined>;
-      const msg = fieldErrors[key]?.[0] ?? "Input tidak valid";
-      setErrors({ [key]: msg });
+      const errorKey = field === "identityType" ? "isAnonymous" : field;
+      const msg = fieldErrors[errorKey]?.[0] ?? "Input tidak valid";
+      setErrors({ [errorKey]: msg });
       return false;
     }
+
+    if (field === "nomorWa" && !otpVerified) {
+      setErrors({ nomorWa: "Verifikasi OTP 4 digit wajib diselesaikan terlebih dahulu" });
+      return false;
+    }
+
     return true;
+  };
+
+  const sendOtp = async () => {
+    const result = stepSchemas.nomorWa.safeParse({ nomorWa: formData.nomorWa });
+    if (!result.success) {
+      const fieldErrors = result.error.flatten().fieldErrors as Record<string, string[] | undefined>;
+      setErrors({ nomorWa: fieldErrors.nomorWa?.[0] ?? "Nomor WhatsApp tidak valid" });
+      return;
+    }
+
+    setSendingOtp(true);
+    try {
+      const res = await fetch("/api/public/wa-otp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nomorWa: formData.nomorWa }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error ?? "Gagal mengirim OTP");
+      }
+
+      setOtpSent(true);
+      setOtpVerified(false);
+      setOtpCode("");
+      setOtpResendIn(data.resendInSeconds ?? 60);
+      setFormData((prev) => ({ ...prev, waVerificationId: "" }));
+      setErrors({});
+      toast.success("OTP 4 digit berhasil dikirim ke WhatsApp");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Gagal mengirim OTP");
+    } finally {
+      setSendingOtp(false);
+    }
+  };
+
+  const verifyOtp = async () => {
+    if (!/^\d{4}$/.test(otpCode)) {
+      setErrors({ otp: "Masukkan 4 digit OTP" });
+      return;
+    }
+
+    setVerifyingOtp(true);
+    try {
+      const res = await fetch("/api/public/wa-otp/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nomorWa: formData.nomorWa, otp: otpCode }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error ?? "OTP tidak valid");
+      }
+
+      setOtpVerified(true);
+      setErrors((prev) => ({ ...prev, nomorWa: "", otp: "" }));
+      setFormData((prev) => ({ ...prev, waVerificationId: data.verificationId }));
+      toast.success("Nomor WhatsApp berhasil diverifikasi");
+    } catch (error) {
+      setOtpVerified(false);
+      setFormData((prev) => ({ ...prev, waVerificationId: "" }));
+      setErrors({ otp: error instanceof Error ? error.message : "OTP tidak valid" });
+    } finally {
+      setVerifyingOtp(false);
+    }
   };
 
   const handleNext = () => {
@@ -173,10 +338,21 @@ export function ReportWizard() {
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
+      const payload = new FormData();
+      payload.set("isAnonymous", String(formData.isAnonymous === true));
+      payload.set("nama", formData.isAnonymous ? "Anonim" : formData.nama);
+      payload.set("nomorWa", formData.isAnonymous ? "" : formData.nomorWa);
+      payload.set("waVerificationId", formData.waVerificationId);
+      payload.set("kelurahan", formData.kelurahan);
+      payload.set("rw", formData.rw);
+      payload.set("kategoriId", formData.kategoriId);
+      payload.set("isiLaporan", formData.isiLaporan);
+      payload.set("source", "web");
+      attachments.forEach((file) => payload.append("attachments", file));
+
       const res = await fetch("/api/reports", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...formData, source: "web" }),
+        body: payload,
       });
       if (!res.ok) {
         const err = await res.json();
@@ -189,6 +365,39 @@ export function ReportWizard() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleAttachmentSelection = (event: ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = Array.from(event.target.files ?? []);
+    if (selectedFiles.length === 0) return;
+
+    const nextFiles = [...attachments, ...selectedFiles];
+    if (nextFiles.length > MAX_ATTACHMENTS) {
+      toast.error(`Maksimal ${MAX_ATTACHMENTS} lampiran`);
+      event.target.value = "";
+      return;
+    }
+
+    for (const file of selectedFiles) {
+      if (!ALLOWED_ATTACHMENT_TYPES.includes(file.type)) {
+        toast.error(`Tipe file tidak didukung: ${file.name}`);
+        event.target.value = "";
+        return;
+      }
+
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        toast.error(`Ukuran file terlalu besar: ${file.name}`);
+        event.target.value = "";
+        return;
+      }
+    }
+
+    setAttachments(nextFiles);
+    event.target.value = "";
+  };
+
+  const removeAttachment = (indexToRemove: number) => {
+    setAttachments((prev) => prev.filter((_, index) => index !== indexToRemove));
   };
 
   return (
@@ -233,7 +442,7 @@ export function ReportWizard() {
         style={{ backgroundColor: "rgba(7,31,13,0.28)", border: "1px solid rgba(240,180,41,0.08)" }}
       >
         <div className="flex items-center justify-between text-xs mb-2" style={{ color: "#a8d5b5" }}>
-          <span className="font-medium">Langkah {step + 1} dari {STEPS.length}</span>
+          <span className="font-medium">Langkah {step + 1} dari {steps.length}</span>
           <span style={{ color: "#f0b429" }}>{Math.round(progress)}%</span>
         </div>
         <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: "rgba(240,180,41,0.15)" }}>
@@ -246,7 +455,7 @@ export function ReportWizard() {
         </div>
         {/* Dots */}
         <div className="flex justify-between mt-2.5">
-          {STEPS.map((_, i) => (
+          {steps.map((_, i) => (
             <div
               key={i}
               className="w-2 h-2 rounded-full transition-all duration-300"
@@ -284,18 +493,51 @@ export function ReportWizard() {
                 style={{ background: "linear-gradient(180deg, rgba(240,180,41,0.22), rgba(240,180,41,0.08))" }}
               >
                 {(() => {
-                  const Icon = STEPS[step].icon;
+                  const Icon = currentStep.icon;
                   return <Icon className="w-5 h-5" style={{ color: "#f0b429" }} />;
                 })()}
               </div>
               <div className="min-w-0">
-                <h2 className="font-bold text-xl leading-tight" style={{ color: "#f5c518" }}>{STEPS[step].title}</h2>
-                <p className="text-sm leading-relaxed mt-1" style={{ color: "#a8d5b5" }}>{STEPS[step].desc}</p>
+                <h2 className="font-bold text-xl leading-tight" style={{ color: "#f5c518" }}>{currentStep.title}</h2>
+                <p className="text-sm leading-relaxed mt-1" style={{ color: "#a8d5b5" }}>{currentStep.desc}</p>
               </div>
             </div>
 
-            {/* Step 0 — Nama */}
-            {step === 0 && (
+            {currentStep.field === "identityType" && (
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  onClick={() => chooseIdentityType(false)}
+                  className="w-full rounded-2xl border px-4 py-4 text-left transition-all"
+                  style={{
+                    backgroundColor: formData.isAnonymous === false ? "rgba(240,180,41,0.12)" : "rgba(7,31,13,0.42)",
+                    borderColor: formData.isAnonymous === false ? "rgba(240,180,41,0.45)" : "rgba(240,180,41,0.14)",
+                  }}
+                >
+                  <div className="font-semibold text-sm" style={{ color: "#f5c518" }}>Dengan Identitas</div>
+                  <p className="mt-1 text-sm leading-relaxed" style={{ color: "#c8e6d0" }}>
+                    Isi nama dan nomor WhatsApp agar tim dapat mengirim konfirmasi dan tindak lanjut.
+                  </p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => chooseIdentityType(true)}
+                  className="w-full rounded-2xl border px-4 py-4 text-left transition-all"
+                  style={{
+                    backgroundColor: formData.isAnonymous === true ? "rgba(240,180,41,0.12)" : "rgba(7,31,13,0.42)",
+                    borderColor: formData.isAnonymous === true ? "rgba(240,180,41,0.45)" : "rgba(240,180,41,0.14)",
+                  }}
+                >
+                  <div className="font-semibold text-sm" style={{ color: "#f5c518" }}>Anonim</div>
+                  <p className="mt-1 text-sm leading-relaxed" style={{ color: "#c8e6d0" }}>
+                    Nama dan nomor WhatsApp tidak akan ditanyakan. Anda tetap bisa mengirim laporan secara aman.
+                  </p>
+                </button>
+                {errors.isAnonymous && <p className="text-xs mt-1" style={errorStyle}>{errors.isAnonymous}</p>}
+              </div>
+            )}
+
+            {currentStep.field === "nama" && (
               <div className="space-y-2">
                 <Label className="text-sm font-medium" style={labelStyle}>Nama Lengkap</Label>
                 <Input
@@ -311,8 +553,7 @@ export function ReportWizard() {
               </div>
             )}
 
-            {/* Step 1 — Nomor WA */}
-            {step === 1 && (
+            {currentStep.field === "nomorWa" && (
               <div className="space-y-2">
                 <Label className="text-sm font-medium" style={labelStyle}>Nomor WhatsApp</Label>
                 <Input
@@ -327,12 +568,60 @@ export function ReportWizard() {
                   autoFocus
                 />
                 {errors.nomorWa && <p className="text-xs mt-1" style={errorStyle}>{errors.nomorWa}</p>}
-                <p className="text-xs" style={{ color: "rgba(168,213,181,0.5)" }}>Konfirmasi laporan akan dikirim ke nomor ini</p>
+                <div className="mt-3 flex flex-col gap-3 rounded-2xl p-3" style={{ backgroundColor: "rgba(240,180,41,0.06)", border: "1px solid rgba(240,180,41,0.12)" }}>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Button
+                      type="button"
+                      onClick={sendOtp}
+                      disabled={sendingOtp || otpResendIn > 0}
+                      className="rounded-xl text-sm sm:flex-1"
+                      style={{ backgroundColor: "#f0b429", color: "#071f0d" }}
+                    >
+                      {sendingOtp ? "Mengirim OTP..." : otpResendIn > 0 ? `Kirim Ulang ${otpResendIn}s` : otpSent ? "Kirim Ulang OTP" : "Kirim OTP"}
+                    </Button>
+                    {otpVerified && (
+                      <div className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold" style={{ backgroundColor: "rgba(74,222,128,0.12)", color: "#86efac" }}>
+                        <Check className="w-4 h-4" />
+                        Terverifikasi
+                      </div>
+                    )}
+                  </div>
+
+                  {otpSent && (
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium" style={labelStyle}>Kode OTP 4 Digit</Label>
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <Input
+                          placeholder="1234"
+                          value={otpCode}
+                          onChange={(e) => {
+                            setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 4));
+                            setErrors((prev) => ({ ...prev, otp: "" }));
+                          }}
+                          inputMode="numeric"
+                          className="h-12 rounded-xl text-sm placeholder:opacity-40 sm:flex-1"
+                          style={inputStyle}
+                        />
+                        <Button
+                          type="button"
+                          onClick={verifyOtp}
+                          disabled={verifyingOtp || otpVerified}
+                          className="rounded-xl text-sm"
+                          style={{ backgroundColor: otpVerified ? "#145228" : "#f0b429", color: otpVerified ? "#86efac" : "#071f0d" }}
+                        >
+                          {verifyingOtp ? "Memverifikasi..." : otpVerified ? "OTP Valid" : "Verifikasi OTP"}
+                        </Button>
+                      </div>
+                      {errors.otp && <p className="text-xs" style={errorStyle}>{errors.otp}</p>}
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs" style={{ color: "rgba(168,213,181,0.5)" }}>Konfirmasi laporan akan dikirim ke nomor ini setelah OTP berhasil diverifikasi</p>
               </div>
             )}
 
             {/* Step 2 — Kelurahan */}
-            {step === 2 && (
+            {currentStep.field === "kelurahan" && (
               <div className="space-y-2">
                 <Label className="text-sm font-medium" style={labelStyle}>Kelurahan</Label>
                 <Select
@@ -358,7 +647,7 @@ export function ReportWizard() {
             )}
 
             {/* Step 3 — RW */}
-            {step === 3 && (
+            {currentStep.field === "rw" && (
               <div className="space-y-2">
                 <Label className="text-sm font-medium" style={labelStyle}>RW (Rukun Warga)</Label>
                 <Select
@@ -384,7 +673,7 @@ export function ReportWizard() {
             )}
 
             {/* Step 4 — Kategori */}
-            {step === 4 && (
+            {currentStep.field === "kategoriId" && (
               <div className="space-y-2">
                 <Label className="text-sm font-medium" style={labelStyle}>Kategori Laporan</Label>
                 <Select value={formData.kategoriId} onValueChange={(v) => updateField("kategoriId", v ?? "")}>
@@ -407,7 +696,7 @@ export function ReportWizard() {
             )}
 
             {/* Step 5 — Isi Laporan */}
-            {step === 5 && (
+            {currentStep.field === "isiLaporan" && (
               <div className="space-y-2">
                 <Label className="text-sm font-medium" style={labelStyle}>Isi Laporan</Label>
                 <Textarea
@@ -433,11 +722,16 @@ export function ReportWizard() {
             )}
 
             {/* Step 6 — Review */}
-            {step === 6 && (
+            {currentStep.field === "review" && (
               <div className="space-y-3">
                 {[
-                  { label: "Nama", value: formData.nama, icon: User },
-                  { label: "WhatsApp", value: formData.nomorWa, icon: Phone },
+                  { label: "Jenis Pelaporan", value: formData.isAnonymous ? "Anonim" : "Dengan Identitas", icon: ShieldCheck },
+                  ...(formData.isAnonymous
+                    ? []
+                    : [
+                        { label: "Nama", value: formData.nama, icon: User },
+                        { label: "WhatsApp", value: formData.nomorWa, icon: Phone },
+                      ]),
                   { label: "Kelurahan", value: formData.kelurahan, icon: MapPin },
                   { label: "RW", value: `RW ${formData.rw}`, icon: Home },
                   {
@@ -474,11 +768,65 @@ export function ReportWizard() {
                   </p>
                 </div>
                 <div
+                  className="rounded-2xl px-4 py-3.5"
+                  style={{ backgroundColor: "rgba(7,31,13,0.42)", border: "1px solid rgba(240,180,41,0.14)" }}
+                >
+                  <div className="mb-2 flex items-center gap-2 text-xs" style={{ color: "rgba(168,213,181,0.6)" }}>
+                    <Paperclip className="w-4 h-4" style={{ color: "#f0b429" }} />
+                    Lampiran Bukti
+                  </div>
+                  <label
+                    className="mb-3 flex cursor-pointer items-center justify-center rounded-xl border border-dashed px-4 py-4 text-sm font-medium"
+                    style={{ borderColor: "rgba(240,180,41,0.22)", color: "#c8e6d0", backgroundColor: "rgba(240,180,41,0.05)" }}
+                  >
+                    <input
+                      type="file"
+                      multiple
+                      accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx"
+                      className="hidden"
+                      onChange={handleAttachmentSelection}
+                    />
+                    Tambah Lampiran
+                  </label>
+                  {attachments.length === 0 ? (
+                    <p className="text-xs" style={{ color: "rgba(168,213,181,0.5)" }}>
+                      Opsional. Anda bisa menambahkan foto, screenshot, atau PDF pendukung.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {attachments.map((file, index) => (
+                        <div
+                          key={`${file.name}-${index}`}
+                          className="flex items-center justify-between rounded-xl px-3 py-2"
+                          style={{ backgroundColor: "rgba(240,180,41,0.06)", border: "1px solid rgba(240,180,41,0.12)" }}
+                        >
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-semibold" style={{ color: "#c8e6d0" }}>{file.name}</div>
+                            <div className="text-xs" style={{ color: "rgba(168,213,181,0.5)" }}>
+                              {(file.size / 1024 / 1024).toFixed(2)} MB
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeAttachment(index)}
+                            className="rounded-full p-1"
+                            style={{ color: "#f87171" }}
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div
                   className="flex items-start gap-2 text-xs rounded-2xl px-4 py-3.5"
                   style={{ backgroundColor: "rgba(240,180,41,0.1)", border: "1px solid rgba(240,180,41,0.25)", color: "#f5c518" }}
                 >
                   <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "#f0b429" }} />
-                  Konfirmasi akan dikirim ke WhatsApp {formData.nomorWa}
+                  {formData.isAnonymous
+                    ? "Laporan akan dikirim sebagai anonim tanpa konfirmasi WhatsApp."
+                    : `Konfirmasi akan dikirim ke WhatsApp ${formData.nomorWa}`}
                 </div>
               </div>
             )}

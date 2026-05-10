@@ -11,6 +11,8 @@ import {
   X,
   ChevronRight,
   Star,
+  Search,
+  MonitorSmartphone,
 } from "lucide-react";
 import { signOut } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
@@ -20,7 +22,8 @@ import Image from "next/image";
 const NAV_ITEMS = [
   { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/laporan", label: "Semua Laporan", icon: FileText },
-  { href: "/admin/ai-assistant", label: "Bank Data AI", icon: Star },
+  { href: "/admin/pencarian", label: "Pencarian Global", icon: Search },
+  { href: "/admin/ptsp", label: "Kunjungan PTSP", icon: MonitorSmartphone },
   { href: "/admin/skm", label: "Survey (SKM)", icon: Star },
 ];
 

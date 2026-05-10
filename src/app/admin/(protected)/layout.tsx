@@ -14,7 +14,7 @@ export default async function AdminLayout({
   }
 
   if (currentUser.bidangId) {
-    redirect("/bidang");
+    redirect("/seksi");
   }
 
   return (

@@ -5,15 +5,15 @@ import { Clock3, FileCheck2, FolderClock, MessageSquareText, UserRound } from "l
 import { db } from "@/lib/db";
 import { categories, disposisi, reports } from "@/lib/schema";
 import { getAuthenticatedUser } from "@/lib/authz";
-import { BidangDashboardClient } from "../page-client";
+import { SeksiDashboardClient } from "../page-client";
 
 export const dynamic = "force-dynamic";
 
-export default async function BidangPage() {
+export default async function SeksiPage() {
   const currentUser = await getAuthenticatedUser(await headers());
 
   if (!currentUser) {
-    redirect("/bidang/login");
+    redirect("/seksi/login");
   }
 
   if (!currentUser.bidangId) {
@@ -39,6 +39,13 @@ export default async function BidangPage() {
       rw: reports.rw,
       isiLaporan: reports.isiLaporan,
       status: reports.status,
+      priorityLevel: reports.priorityLevel,
+      priorityReason: reports.priorityReason,
+      outcomeType: reports.outcomeType,
+      outcomeSummary: reports.outcomeSummary,
+      outcomeFollowUp: reports.outcomeFollowUp,
+      additionalInfoRequest: reports.additionalInfoRequest,
+      additionalInfoRequestedAt: reports.additionalInfoRequestedAt,
       createdAt: reports.createdAt,
       updatedAt: reports.updatedAt,
       kategoriNama: categories.nama,
@@ -72,13 +79,13 @@ export default async function BidangPage() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <div className="text-xs uppercase tracking-[0.28em] font-semibold" style={{ color: "#f0b429" }}>
-            Bidang {currentUser.bidangKode ?? ""}
+            Seksi {currentUser.bidangKode ?? ""}
           </div>
           <h1 className="text-2xl font-bold mt-1" style={{ color: "#f5c518" }}>
             Tindak Lanjut Disposisi
           </h1>
           <p className="text-sm mt-1 max-w-2xl" style={{ color: "#a8d5b5" }}>
-            Kelola laporan yang dikirim admin ke bidang Anda, tandai saat mulai diproses, lalu selesaikan agar admin dan warga langsung mendapat pembaruan.
+            Kelola laporan yang dikirim admin ke seksi Anda, tandai saat mulai diproses, lalu selesaikan agar admin dan warga langsung mendapat pembaruan.
           </p>
         </div>
 
@@ -119,7 +126,7 @@ export default async function BidangPage() {
         ))}
       </div>
 
-      <BidangDashboardClient
+      <SeksiDashboardClient
         bidangNama={currentUser.bidangNama}
         reports={assignedReports}
       />

@@ -114,6 +114,13 @@ export const reports = pgTable("reports", {
   aiCategorySuggestion: text("ai_category_suggestion"),
   aiConfidenceScore: text("ai_confidence_score"),
   aiAlasan: text("ai_alasan"),
+  priorityLevel: text("priority_level").notNull().default("normal"),
+  priorityReason: text("priority_reason"),
+  outcomeType: text("outcome_type"),
+  outcomeSummary: text("outcome_summary"),
+  outcomeFollowUp: text("outcome_follow_up"),
+  additionalInfoRequest: text("additional_info_request"),
+  additionalInfoRequestedAt: timestamp("additional_info_requested_at"),
   inputBy: text("input_by").references(() => user.id),
   // for offline input
   createdAt: timestamp("created_at").defaultNow(),
@@ -160,6 +167,70 @@ export const waSessions = pgTable("wa_sessions", {
   isiLaporan: text("isi_laporan"),
   clarificationCount: integer("clarification_count").notNull().default(0),
   status: text("status").notNull().default("collecting"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const reportAttachments = pgTable("report_attachments", {
+  id: serial("id").primaryKey(),
+  reportId: integer("report_id")
+    .notNull()
+    .references(() => reports.id, { onDelete: "cascade" }),
+  originalName: text("original_name").notNull(),
+  storedName: text("stored_name").notNull(),
+  filePath: text("file_path").notNull(),
+  mimeType: text("mime_type").notNull(),
+  sizeBytes: integer("size_bytes").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const reportAuditLogs = pgTable("report_audit_logs", {
+  id: serial("id").primaryKey(),
+  reportId: integer("report_id")
+    .notNull()
+    .references(() => reports.id, { onDelete: "cascade" }),
+  action: text("action").notNull(),
+  actorType: text("actor_type").notNull().default("system"),
+  actorId: text("actor_id"),
+  actorName: text("actor_name"),
+  summary: text("summary").notNull(),
+  metadata: text("metadata"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const ptspVisitLogs = pgTable("ptsp_visit_logs", {
+  id: serial("id").primaryKey(),
+  serviceType: text("service_type").notNull(),
+  reportId: integer("report_id").references(() => reports.id, { onDelete: "set null" }),
+  reportNumber: text("report_number"),
+  visitorCardNumber: text("visitor_card_number"),
+  visitorName: text("visitor_name").notNull(),
+  visitorPhone: text("visitor_phone"),
+  bidangId: integer("bidang_id").references(() => bidang.id, { onDelete: "set null" }),
+  targetName: text("target_name"),
+  isIncognito: boolean("is_incognito").notNull().default(false),
+  appointmentId: integer("appointment_id"),
+  note: text("note"),
+  ktpFilePath: text("ktp_file_path").notNull(),
+  webcamFilePath: text("webcam_file_path").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const ptspAppointments = pgTable("ptsp_appointments", {
+  id: serial("id").primaryKey(),
+  bidangId: integer("bidang_id")
+    .notNull()
+    .references(() => bidang.id, { onDelete: "cascade" }),
+  hostName: text("host_name").notNull(),
+  visitorName: text("visitor_name").notNull(),
+  visitorPhone: text("visitor_phone"),
+  agenda: text("agenda").notNull(),
+  note: text("note"),
+  scheduledFor: timestamp("scheduled_for").notNull(),
+  isIncognito: boolean("is_incognito").notNull().default(false),
+  status: text("status").notNull().default("scheduled"),
+  confirmedAt: timestamp("confirmed_at"),
+  createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -242,6 +313,10 @@ export type Report = typeof reports.$inferSelect;
 export type Disposisi = typeof disposisi.$inferSelect;
 export type WaLog = typeof waLogs.$inferSelect;
 export type WaSession = typeof waSessions.$inferSelect;
+export type ReportAttachment = typeof reportAttachments.$inferSelect;
+export type ReportAuditLog = typeof reportAuditLogs.$inferSelect;
+export type PtspVisitLog = typeof ptspVisitLogs.$inferSelect;
+export type PtspAppointment = typeof ptspAppointments.$inferSelect;
 export type AiKnowledgeEntry = typeof aiKnowledgeEntries.$inferSelect;
 export type User = typeof user.$inferSelect;
 

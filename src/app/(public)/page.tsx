@@ -167,15 +167,17 @@ export default function LandingPage() {
                     Buat Pengaduan via Web
                   </Button>
                 </Link>
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="font-semibold rounded px-8 h-12 text-sm w-full sm:w-auto"
-                  style={{ borderColor: "rgba(240,180,41,0.4)", color: "#f0b429", backgroundColor: "transparent" }}
-                >
-                  <Phone className="w-4 h-4 mr-2" />
-                  Konsultasi via WhatsApp
-                </Button>
+                <a href="https://wa.me/6285155409070" target="_blank" rel="noopener noreferrer">
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="font-semibold rounded px-8 h-12 text-sm w-full sm:w-auto"
+                    style={{ borderColor: "rgba(240,180,41,0.4)", color: "#f0b429", backgroundColor: "transparent" }}
+                  >
+                    <Phone className="w-4 h-4 mr-2" />
+                    Konsultasi via WhatsApp
+                  </Button>
+                </a>
               </motion.div>
 
               <motion.div variants={fadeUp} className="flex items-center gap-5 mt-8 justify-center lg:justify-start">

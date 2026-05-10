@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export default function BidangLoginPage() {
+export default function SeksiLoginPage() {
   const router = useRouter();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -32,7 +32,7 @@ export default function BidangLoginPage() {
       } | null;
 
       if (!resolveRes.ok || !resolveData?.email) {
-        throw new Error(resolveData?.error ?? "Kode bidang tidak ditemukan");
+        throw new Error(resolveData?.error ?? "Kode seksi tidak ditemukan");
       }
 
       await signIn.email({ email: resolveData.email, password });
@@ -41,7 +41,7 @@ export default function BidangLoginPage() {
         user?: { bidangId?: number | null };
       } | null;
 
-      router.push(meData?.user?.bidangId ? "/bidang" : "/admin/dashboard");
+      router.push(meData?.user?.bidangId ? "/seksi" : "/admin/dashboard");
     } catch {
       toast.error("Email atau password tidak valid");
     } finally {
@@ -75,17 +75,17 @@ export default function BidangLoginPage() {
                 SAHATE
               </div>
               <h1 className="text-xl font-bold" style={{ color: "#f5c518" }}>
-                Login Bidang
+                Login Seksi
               </h1>
               <p className="text-xs mt-1" style={{ color: "#a8d5b5" }}>
-                Akses khusus tindak lanjut disposisi laporan warga
+                Akses khusus tindak lanjut disposisi laporan warga oleh seksi terkait
               </p>
             </div>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-5">
             <div className="space-y-1.5">
-              <Label style={{ color: "#f0b429" }}>Kode Bidang</Label>
+              <Label style={{ color: "#f0b429" }}>Kode Seksi</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "#a8d5b5" }} />
                 <Input
@@ -99,7 +99,7 @@ export default function BidangLoginPage() {
                 />
               </div>
               <p className="text-[11px]" style={{ color: "rgba(168,213,181,0.65)" }}>
-                Cukup masukkan kode bidang seperti `PBIN`, `INTEL`, `PIDUM`, `PIDSUS`, atau `DATUN`.
+                Cukup masukkan kode seksi seperti `PBIN`, `INTEL`, `PIDUM`, `PIDSUS`, `DATUN`, atau `PAPBB`.
               </p>
             </div>
 
@@ -133,7 +133,7 @@ export default function BidangLoginPage() {
               className="w-full h-11 rounded-xl font-semibold"
               style={{ backgroundColor: "#f0b429", color: "#071f0d" }}
             >
-              {loading ? "Memverifikasi..." : "Masuk ke Portal Bidang"}
+              {loading ? "Memverifikasi..." : "Masuk ke Portal Seksi"}
             </Button>
           </form>
         </div>

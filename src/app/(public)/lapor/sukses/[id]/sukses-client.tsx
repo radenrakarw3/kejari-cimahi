@@ -1,9 +1,11 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { CheckCircle, Copy, MessageSquare, Star } from "lucide-react";
+import { CheckCircle, Copy, MessageSquare, Search, Star } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
 interface SuksesClientProps {
   report: {
@@ -151,6 +153,24 @@ export function SuksesClient({ report }: SuksesClientProps) {
           Link survey resmi SKM tersedia di pesan konfirmasi WhatsApp Anda.
         </p>
       </motion.div>
+
+      <div className="rounded-2xl p-4" style={{ backgroundColor: "#145228", border: "1px solid rgba(240,180,41,0.15)" }}>
+        <div className="text-sm font-semibold" style={{ color: "#f5c518" }}>
+          Ingin pantau perkembangan laporan?
+        </div>
+        <p className="mt-1 text-xs leading-relaxed" style={{ color: "#a8d5b5" }}>
+          Anda bisa cek status laporan kapan saja menggunakan nomor laporan ini.
+        </p>
+        <Link href={`/cek-status?nomor=${encodeURIComponent(report.nomorLaporan)}`} className="mt-3 inline-block">
+          <Button
+            className="rounded-xl text-sm"
+            style={{ backgroundColor: "#f0b429", color: "#071f0d" }}
+          >
+            <Search className="w-4 h-4 mr-2" />
+            Cek Status Laporan
+          </Button>
+        </Link>
+      </div>
     </div>
   );
 }

@@ -43,3 +43,6 @@ next-env.d.ts
 # env files
 .env.local
 .env
+
+# Uploaded files (PTSP / laporan) — jangan commit ke Git
+/public/uploads

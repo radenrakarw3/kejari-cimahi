@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { reports, categories, disposisi, waLogs, bidang } from "@/lib/schema";
+import { reports, categories, disposisi, bidang, reportAttachments, reportAuditLogs } from "@/lib/schema";
 import { eq, desc } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { LaporanDetailClient } from "./laporan-detail-client";
@@ -26,6 +26,13 @@ export default async function LaporanDetailPage({
       isiLaporan: reports.isiLaporan,
       status: reports.status,
       source: reports.source,
+      priorityLevel: reports.priorityLevel,
+      priorityReason: reports.priorityReason,
+      outcomeType: reports.outcomeType,
+      outcomeSummary: reports.outcomeSummary,
+      outcomeFollowUp: reports.outcomeFollowUp,
+      additionalInfoRequest: reports.additionalInfoRequest,
+      additionalInfoRequestedAt: reports.additionalInfoRequestedAt,
       createdAt: reports.createdAt,
       updatedAt: reports.updatedAt,
       kategoriId: reports.kategoriId,
@@ -40,7 +47,7 @@ export default async function LaporanDetailPage({
 
   if (!report) notFound();
 
-  const [disposisiList, waLogsList, allBidang, allCategories] = await Promise.all([
+  const [disposisiList, allBidang, allCategories, attachments, auditLogs] = await Promise.all([
     db
       .select({
         id: disposisi.id,
@@ -54,22 +61,28 @@ export default async function LaporanDetailPage({
       .leftJoin(bidang, eq(disposisi.bidangId, bidang.id))
       .where(eq(disposisi.reportId, reportId))
       .orderBy(desc(disposisi.disposedAt)),
-    db
-      .select()
-      .from(waLogs)
-      .where(eq(waLogs.reportId, reportId))
-      .orderBy(waLogs.timestamp),
     db.select().from(bidang),
     db.select().from(categories),
+    db
+      .select()
+      .from(reportAttachments)
+      .where(eq(reportAttachments.reportId, reportId))
+      .orderBy(desc(reportAttachments.createdAt)),
+    db
+      .select()
+      .from(reportAuditLogs)
+      .where(eq(reportAuditLogs.reportId, reportId))
+      .orderBy(desc(reportAuditLogs.createdAt)),
   ]);
 
   return (
     <LaporanDetailClient
       report={report}
       disposisiList={disposisiList}
-      waLogsList={waLogsList}
       allBidang={allBidang}
       allCategories={allCategories}
+      attachments={attachments}
+      auditLogs={auditLogs}
     />
   );
 }

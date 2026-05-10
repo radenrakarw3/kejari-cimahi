@@ -1,15 +1,15 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getAuthenticatedUser } from "@/lib/authz";
-import { BidangProfileClient } from "./profile-client";
+import { SeksiProfileClient } from "@/components/seksi/seksi-profile-client";
 
 export const dynamic = "force-dynamic";
 
-export default async function BidangProfilPage() {
+export default async function SeksiProfilPage() {
   const currentUser = await getAuthenticatedUser(await headers());
 
   if (!currentUser) {
-    redirect("/bidang/login");
+    redirect("/seksi/login");
   }
 
   if (!currentUser.bidangId) {
@@ -17,7 +17,7 @@ export default async function BidangProfilPage() {
   }
 
   return (
-    <BidangProfileClient
+    <SeksiProfileClient
       initialProfile={{
         name: currentUser.name,
         email: currentUser.email,

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-interface BidangProfileClientProps {
+interface SeksiProfileClientProps {
   initialProfile: {
     name: string;
     email: string;
@@ -18,7 +18,7 @@ interface BidangProfileClientProps {
   };
 }
 
-export function BidangProfileClient({ initialProfile }: BidangProfileClientProps) {
+export function SeksiProfileClient({ initialProfile }: SeksiProfileClientProps) {
   const router = useRouter();
   const [name, setName] = useState(initialProfile.name);
   const [phoneNumber, setPhoneNumber] = useState(initialProfile.phoneNumber ?? "");
@@ -40,7 +40,7 @@ export function BidangProfileClient({ initialProfile }: BidangProfileClientProps
         throw new Error(data?.error ?? "Gagal menyimpan profil");
       }
 
-      toast.success("Profil bidang berhasil diperbarui");
+      toast.success("Profil seksi berhasil diperbarui");
       router.refresh();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Terjadi kesalahan");
@@ -53,13 +53,13 @@ export function BidangProfileClient({ initialProfile }: BidangProfileClientProps
     <div className="max-w-3xl space-y-6">
       <div>
         <div className="text-xs uppercase tracking-[0.28em] font-semibold" style={{ color: "#f0b429" }}>
-          Profil Bidang
+          Profil Seksi
         </div>
         <h1 className="text-2xl font-bold mt-1" style={{ color: "#f5c518" }}>
           Data Petugas dan Notifikasi
         </h1>
         <p className="text-sm mt-2 max-w-2xl" style={{ color: "#a8d5b5" }}>
-          Atur nama petugas yang tampil di portal bidang serta nomor WhatsApp admin bidang untuk menerima notifikasi saat admin mengirim disposisi baru.
+          Atur nama petugas yang tampil di portal seksi serta nomor WhatsApp admin seksi untuk menerima notifikasi saat admin mengirim disposisi baru.
         </p>
       </div>
 
@@ -89,7 +89,7 @@ export function BidangProfileClient({ initialProfile }: BidangProfileClientProps
             </div>
             <div>
               <div className="text-sm font-semibold" style={{ color: "#f5c518" }}>{initialProfile.email}</div>
-              <div className="text-xs" style={{ color: "#a8d5b5" }}>Akun login bidang</div>
+              <div className="text-xs" style={{ color: "#a8d5b5" }}>Akun login seksi</div>
             </div>
           </div>
         </div>
@@ -108,19 +108,19 @@ export function BidangProfileClient({ initialProfile }: BidangProfileClientProps
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Masukkan nama petugas bidang"
+            placeholder="Masukkan nama petugas seksi"
             className="h-11 rounded-xl"
             style={{ backgroundColor: "#145228", borderColor: "rgba(240,180,41,0.25)", color: "#c8e6d0" }}
           />
           <p className="text-[11px]" style={{ color: "rgba(168,213,181,0.65)" }}>
-            Nama ini dipakai sebagai identitas petugas bidang pada portal internal.
+            Nama ini dipakai sebagai identitas petugas seksi pada portal internal.
           </p>
         </div>
 
         <div className="space-y-1.5">
           <Label style={{ color: "#f0b429" }}>
             <Phone className="w-4 h-4" />
-            Nomor WA Admin Bidang
+            Nomor WA Admin Seksi
           </Label>
           <Input
             value={phoneNumber}
@@ -138,7 +138,7 @@ export function BidangProfileClient({ initialProfile }: BidangProfileClientProps
           className="rounded-2xl px-4 py-3 text-sm"
           style={{ backgroundColor: "rgba(240,180,41,0.07)", border: "1px solid rgba(240,180,41,0.12)", color: "#c8e6d0" }}
         >
-          Jika nomor WA dikosongkan, notifikasi disposisi ke admin bidang tidak akan dikirim.
+          Jika nomor WA dikosongkan, notifikasi disposisi ke admin seksi tidak akan dikirim.
         </div>
 
         <div className="flex justify-end">

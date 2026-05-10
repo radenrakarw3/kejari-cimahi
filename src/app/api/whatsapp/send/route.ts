@@ -3,6 +3,7 @@ import { sendWhatsApp, normalizePhone } from "@/lib/whatsapp";
 import { db } from "@/lib/db";
 import { waLogs } from "@/lib/schema";
 import { auth } from "@/lib/auth";
+import { createReportAuditLog } from "@/lib/report-audit";
 
 export async function POST(req: NextRequest) {
   const session = await auth.api.getSession({ headers: req.headers });
@@ -30,6 +31,21 @@ export async function POST(req: NextRequest) {
       phoneNumber: normalizePhone(phoneNumber),
       status: result.success ? "sent" : "failed",
     });
+
+    if (reportId) {
+      await createReportAuditLog({
+        reportId,
+        action: "manual_whatsapp_sent",
+        actorType: "admin",
+        actorId: session.user.id,
+        actorName: session.user.name,
+        summary: result.success ? "Pesan WhatsApp manual dikirim ke pelapor" : "Percobaan kirim WhatsApp manual gagal",
+        metadata: {
+          phoneNumber: normalizePhone(phoneNumber),
+          status: result.success ? "sent" : "failed",
+        },
+      });
+    }
 
     if (!result.success) {
       return NextResponse.json(

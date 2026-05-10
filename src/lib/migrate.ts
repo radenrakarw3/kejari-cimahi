@@ -111,6 +111,13 @@ async function main() {
       "ai_category_suggestion" text,
       "ai_confidence_score" text,
       "ai_alasan" text,
+      "priority_level" text NOT NULL DEFAULT 'normal',
+      "priority_reason" text,
+      "outcome_type" text,
+      "outcome_summary" text,
+      "outcome_follow_up" text,
+      "additional_info_request" text,
+      "additional_info_requested_at" timestamp,
       "input_by" text REFERENCES "user"("id"),
       "created_at" timestamp DEFAULT now(),
       "updated_at" timestamp DEFAULT now()
@@ -159,6 +166,72 @@ async function main() {
   `;
 
   await sql`
+    CREATE TABLE IF NOT EXISTS "report_attachments" (
+      "id" serial PRIMARY KEY NOT NULL,
+      "report_id" integer NOT NULL REFERENCES "reports"("id") ON DELETE CASCADE,
+      "original_name" text NOT NULL,
+      "stored_name" text NOT NULL,
+      "file_path" text NOT NULL,
+      "mime_type" text NOT NULL,
+      "size_bytes" integer NOT NULL,
+      "created_at" timestamp DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS "report_audit_logs" (
+      "id" serial PRIMARY KEY NOT NULL,
+      "report_id" integer NOT NULL REFERENCES "reports"("id") ON DELETE CASCADE,
+      "action" text NOT NULL,
+      "actor_type" text NOT NULL DEFAULT 'system',
+      "actor_id" text,
+      "actor_name" text,
+      "summary" text NOT NULL,
+      "metadata" text,
+      "created_at" timestamp DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS "ptsp_visit_logs" (
+      "id" serial PRIMARY KEY NOT NULL,
+      "service_type" text NOT NULL,
+      "report_id" integer REFERENCES "reports"("id") ON DELETE SET NULL,
+      "report_number" text,
+      "visitor_card_number" text,
+      "visitor_name" text NOT NULL,
+      "visitor_phone" text,
+      "bidang_id" integer REFERENCES "bidang"("id") ON DELETE SET NULL,
+      "target_name" text,
+      "is_incognito" boolean NOT NULL DEFAULT false,
+      "appointment_id" integer,
+      "note" text,
+      "ktp_file_path" text NOT NULL,
+      "webcam_file_path" text NOT NULL,
+      "created_at" timestamp DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS "ptsp_appointments" (
+      "id" serial PRIMARY KEY NOT NULL,
+      "bidang_id" integer NOT NULL REFERENCES "bidang"("id") ON DELETE CASCADE,
+      "host_name" text NOT NULL,
+      "visitor_name" text NOT NULL,
+      "visitor_phone" text,
+      "agenda" text NOT NULL,
+      "note" text,
+      "scheduled_for" timestamp NOT NULL,
+      "is_incognito" boolean NOT NULL DEFAULT false,
+      "status" text NOT NULL DEFAULT 'scheduled',
+      "confirmed_at" timestamp,
+      "created_by" text REFERENCES "user"("id") ON DELETE SET NULL,
+      "created_at" timestamp DEFAULT now(),
+      "updated_at" timestamp DEFAULT now()
+    )
+  `;
+
+  await sql`
     CREATE TABLE IF NOT EXISTS "ai_knowledge_entries" (
       "id" serial PRIMARY KEY NOT NULL,
       "title" text NOT NULL,
@@ -178,6 +251,66 @@ async function main() {
   await sql`
     ALTER TABLE "wa_logs"
     ADD COLUMN IF NOT EXISTS "sent_by" text DEFAULT 'admin'
+  `;
+
+  await sql`
+    ALTER TABLE "reports"
+    ADD COLUMN IF NOT EXISTS "outcome_type" text
+  `;
+
+  await sql`
+    ALTER TABLE "reports"
+    ADD COLUMN IF NOT EXISTS "priority_level" text NOT NULL DEFAULT 'normal'
+  `;
+
+  await sql`
+    ALTER TABLE "reports"
+    ADD COLUMN IF NOT EXISTS "priority_reason" text
+  `;
+
+  await sql`
+    ALTER TABLE "reports"
+    ADD COLUMN IF NOT EXISTS "outcome_summary" text
+  `;
+
+  await sql`
+    ALTER TABLE "reports"
+    ADD COLUMN IF NOT EXISTS "outcome_follow_up" text
+  `;
+
+  await sql`
+    ALTER TABLE "reports"
+    ADD COLUMN IF NOT EXISTS "additional_info_request" text
+  `;
+
+  await sql`
+    ALTER TABLE "reports"
+    ADD COLUMN IF NOT EXISTS "additional_info_requested_at" timestamp
+  `;
+
+  await sql`
+    ALTER TABLE "ptsp_visit_logs"
+    ADD COLUMN IF NOT EXISTS "visitor_card_number" text
+  `;
+
+  await sql`
+    ALTER TABLE "ptsp_visit_logs"
+    ADD COLUMN IF NOT EXISTS "bidang_id" integer REFERENCES "bidang"("id") ON DELETE SET NULL
+  `;
+
+  await sql`
+    ALTER TABLE "ptsp_visit_logs"
+    ADD COLUMN IF NOT EXISTS "target_name" text
+  `;
+
+  await sql`
+    ALTER TABLE "ptsp_visit_logs"
+    ADD COLUMN IF NOT EXISTS "is_incognito" boolean NOT NULL DEFAULT false
+  `;
+
+  await sql`
+    ALTER TABLE "ptsp_visit_logs"
+    ADD COLUMN IF NOT EXISTS "appointment_id" integer
   `;
 
   await sql`

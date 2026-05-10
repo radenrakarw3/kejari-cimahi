@@ -1,9 +1,9 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { BidangShell } from "@/components/bidang/bidang-shell";
+import { SeksiShell } from "@/components/seksi/seksi-shell";
 import { getAuthenticatedUser } from "@/lib/authz";
 
-export default async function BidangLayout({
+export default async function SeksiLayout({
   children,
 }: {
   children: React.ReactNode;
@@ -11,7 +11,7 @@ export default async function BidangLayout({
   const currentUser = await getAuthenticatedUser(await headers());
 
   if (!currentUser) {
-    redirect("/bidang/login");
+    redirect("/seksi/login");
   }
 
   if (!currentUser.bidangId) {
@@ -19,7 +19,7 @@ export default async function BidangLayout({
   }
 
   return (
-    <BidangShell
+    <SeksiShell
       user={{
         name: currentUser.name,
         email: currentUser.email,
@@ -28,6 +28,6 @@ export default async function BidangLayout({
       }}
     >
       {children}
-    </BidangShell>
+    </SeksiShell>
   );
 }

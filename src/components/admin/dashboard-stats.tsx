@@ -3,6 +3,7 @@ import { StatsChartsClient } from "./stats-charts-client";
 import { db } from "@/lib/db";
 import { reports, categories } from "@/lib/schema";
 import { eq, desc } from "drizzle-orm";
+import { getSlaState } from "@/lib/report-sla";
 
 const JAKARTA_TZ = "Asia/Jakarta";
 
@@ -71,8 +72,10 @@ export async function DashboardStats() {
       id: reports.id,
       status: reports.status,
       source: reports.source,
+      priorityLevel: reports.priorityLevel,
       kelurahan: reports.kelurahan,
       createdAt: reports.createdAt,
+      updatedAt: reports.updatedAt,
       kategoriId: reports.kategoriId,
       kategoriNama: categories.nama,
       kategoriWarna: categories.warna,
@@ -96,6 +99,9 @@ export async function DashboardStats() {
   let pending = 0;
   let completedMonth = 0;
   let totalMonth = 0;
+  let warningSla = 0;
+  let overdueSla = 0;
+  let highPriorityOpen = 0;
 
   for (const row of data) {
     if (!row.createdAt) continue;
@@ -124,6 +130,13 @@ export async function DashboardStats() {
 
     if (dateKey === todayKey) today += 1;
     if (openStatuses.has(status)) pending += 1;
+    if (openStatuses.has(status) && ["mendesak", "kritis"].includes(row.priorityLevel ?? "normal")) {
+      highPriorityOpen += 1;
+    }
+
+    const slaState = getSlaState({ status, createdAt: row.createdAt, updatedAt: row.updatedAt });
+    if (slaState.key === "warning") warningSla += 1;
+    if (slaState.key === "overdue") overdueSla += 1;
 
     if (monthKey === currentMonthKey) {
       totalMonth += 1;
@@ -234,6 +247,27 @@ export async function DashboardStats() {
       icon: CheckCircle,
       accent: "#4ade80",
     },
+    {
+      label: "Mendekati SLA",
+      value: warningSla,
+      sublabel: "Perlu atensi admin hari ini",
+      icon: CalendarRange,
+      accent: "#fb923c",
+    },
+    {
+      label: "Lewat SLA",
+      value: overdueSla,
+      sublabel: "Perlu eskalasi segera",
+      icon: CircleDashed,
+      accent: "#f87171",
+    },
+    {
+      label: "Prioritas Tinggi",
+      value: highPriorityOpen,
+      sublabel: "Mendesak dan kritis yang masih terbuka",
+      icon: TrendingUp,
+      accent: "#f97316",
+    },
   ];
 
   return (
@@ -300,7 +334,7 @@ export async function DashboardStats() {
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
         {cards.map((card) => (
           <div
             key={card.label}
