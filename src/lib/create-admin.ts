@@ -35,7 +35,7 @@ async function main() {
     const createdEmail = ((data.user as Record<string, unknown>)?.email ?? email) as string;
     await db
       .update(user)
-      .set({ role: "admin", bidangId: null, updatedAt: new Date() })
+      .set({ role: "admin", bidangId: null, emailVerified: true, updatedAt: new Date() })
       .where(eq(user.email, createdEmail));
     console.log("✅ Admin created:", (data.user as Record<string, unknown>)?.email ?? data);
   } else {

@@ -12,11 +12,12 @@
     "lint": "eslint",
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
     "db:migrate": "tsx --env-file=.env.local src/lib/migrate.ts",
     "db:seed": "tsx --env-file=.env.local src/lib/seed.ts",
+    "bootstrap:accounts": "tsx --env-file=.env.local src/lib/bootstrap-accounts.ts",
     "create-admin": "tsx --env-file=.env.local src/lib/create-admin.ts",
     "create-bidang-user": "tsx --env-file=.env.local src/lib/create-bidang-user.ts",
+    "create-seksi-user": "tsx --env-file=.env.local src/lib/create-bidang-user.ts",
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {

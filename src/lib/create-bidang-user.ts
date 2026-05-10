@@ -15,7 +15,8 @@ async function main() {
   const phoneNumber = process.argv[6] ?? null;
 
   if (!email || !password || !name || !bidangKode) {
-    console.error("Usage: npm run create-bidang-user -- <email> <password> <name> <kodeBidang>");
+    console.error("Usage: npm run create-seksi-user -- <email> <password> <name> <kodeSeksi>");
+    console.error("   (alias: create-bidang-user — kode = PBIN, INTEL, PIDUM, …)");
     process.exit(1);
   }
 
@@ -66,6 +67,7 @@ async function main() {
       role: "bidang",
       bidangId: targetBidang.id,
       phoneNumber,
+      emailVerified: true,
       updatedAt: new Date(),
     })
     .where(eq(user.email, createdEmail));
