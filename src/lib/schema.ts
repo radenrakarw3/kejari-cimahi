@@ -253,6 +253,13 @@ export const aiAssistantSettings = pgTable("ai_assistant_settings", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+/** Key-value pengaturan runtime (PIN PTSP, dll.) — diubah dari panel admin setelah unlock kode sistem. */
+export const appSettings = pgTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // ─── Zod Schemas ───────────────────────────────────────────────────────────────
 export const insertReportSchema = createInsertSchema(reports, {
   nama: z.string().min(3, "Nama minimal 3 karakter"),

@@ -1,15 +1,31 @@
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
+import { eq } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { appSettings } from "@/lib/schema";
+import { APP_KEY_PTSP_PIN } from "@/lib/app-settings-constants";
 
 export const PTSP_COOKIE_NAME = "ptsp_frontdesk_access";
 const DEFAULT_PTSP_PIN = "1960";
 
-function getExpectedPin() {
+async function resolvePtspPin(): Promise<string> {
+  try {
+    const [row] = await db
+      .select({ value: appSettings.value })
+      .from(appSettings)
+      .where(eq(appSettings.key, APP_KEY_PTSP_PIN))
+      .limit(1);
+    const v = row?.value?.trim();
+    if (v) return v;
+  } catch {
+    // Tabel belum ada / migrasi belum jalan — fallback env/default
+  }
   return process.env.PTSP_FRONTDESK_PIN?.trim() || DEFAULT_PTSP_PIN;
 }
 
-export function isValidPtspPin(pin: string) {
-  return pin.trim() === getExpectedPin();
+export async function isValidPtspPin(pin: string): Promise<boolean> {
+  const expected = await resolvePtspPin();
+  return pin.trim() === expected;
 }
 
 export async function hasPtspAccess() {

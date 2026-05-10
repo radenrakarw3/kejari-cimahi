@@ -13,6 +13,7 @@ import {
   Star,
   Search,
   MonitorSmartphone,
+  KeyRound,
 } from "lucide-react";
 import { signOut } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
@@ -25,6 +26,7 @@ const NAV_ITEMS = [
   { href: "/admin/pencarian", label: "Pencarian Global", icon: Search },
   { href: "/admin/ptsp", label: "Kunjungan PTSP", icon: MonitorSmartphone },
   { href: "/admin/skm", label: "Survey (SKM)", icon: Star },
+  { href: "/admin/pengaturan", label: "Pengaturan akun", icon: KeyRound },
 ];
 
 interface AdminShellProps {
