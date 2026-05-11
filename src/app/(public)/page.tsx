@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import Image from "next/image";
@@ -70,6 +71,8 @@ const fadeUp = {
 const stagger = { hidden: {}, visible: { transition: { staggerChildren: 0.1 } } };
 
 export default function LandingPage() {
+  const [headerLogoFailed, setHeaderLogoFailed] = useState(false);
+
   return (
     <main className="min-h-screen" style={{ backgroundColor: "#071f0d", color: "#c8e6d0" }}>
       {/* Top gold stripe */}
@@ -78,20 +81,31 @@ export default function LandingPage() {
       {/* Navbar */}
       <nav className="sticky top-0 z-50 shadow-lg" style={{ backgroundColor: "#0a3d1a", borderBottom: "1px solid rgba(240,180,41,0.15)" }}>
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div
-              className="w-9 h-9 rounded-full flex items-center justify-center p-0.5 shadow"
-              style={{ backgroundColor: "rgba(240,180,41,0.15)", border: "1px solid rgba(240,180,41,0.4)" }}
-            >
-              <Image
-                src="/logo-kejari.svg"
-                alt="Logo SAHATE Kejari Cimahi"
-                width={32}
-                height={32}
-                className="object-contain"
-                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-              />
-            </div>
+          <div className="flex items-center gap-3 min-w-0">
+            {headerLogoFailed ? (
+              <div
+                className="h-9 w-9 shrink-0 flex items-center justify-center rounded-md"
+                style={{ backgroundColor: "#071f0d", border: "1px solid rgba(240,180,41,0.25)" }}
+                aria-hidden
+              >
+                <Scale className="h-5 w-5" style={{ color: "#f0b429" }} />
+              </div>
+            ) : (
+              <div
+                className="h-9 w-9 shrink-0 rounded-md flex items-center justify-center overflow-hidden"
+                style={{ backgroundColor: "#071f0d", border: "1px solid rgba(240,180,41,0.2)" }}
+              >
+                <Image
+                  src="/logo-kejari.svg"
+                  alt="Logo SAHATE Kejari Cimahi"
+                  width={36}
+                  height={36}
+                  className="object-contain object-center h-8 w-8"
+                  onError={() => setHeaderLogoFailed(true)}
+                  priority
+                />
+              </div>
+            )}
             <div>
               <div className="font-bold text-sm leading-none" style={{ color: "#f0b429" }}>SAHATE Kejari Cimahi</div>
               <div className="text-[10px] leading-none mt-0.5 font-medium" style={{ color: "#a8d5b5" }}>
@@ -99,28 +113,15 @@ export default function LandingPage() {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <Link href="/cek-status">
-              <Button
-                size="sm"
-                variant="outline"
-                className="font-semibold rounded text-xs sm:text-sm px-3 sm:px-4 border-[rgba(240,180,41,0.45)]"
-                style={{ color: "#f0b429", backgroundColor: "transparent" }}
-              >
-                <FileSearch className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1 sm:mr-1.5" />
-                Cek Status
-              </Button>
-            </Link>
-            <Link href="/lapor">
-              <Button
-                size="sm"
-                className="font-bold rounded text-xs sm:text-sm px-3 sm:px-5"
-                style={{ backgroundColor: "#f0b429", color: "#071f0d" }}
-              >
-                Akses Layanan
-              </Button>
-            </Link>
-          </div>
+          <Link href="/lapor" className="shrink-0">
+            <Button
+              size="sm"
+              className="font-bold rounded text-xs sm:text-sm px-3 sm:px-5"
+              style={{ backgroundColor: "#f0b429", color: "#071f0d" }}
+            >
+              Akses Layanan
+            </Button>
+          </Link>
         </div>
       </nav>
 
@@ -190,39 +191,50 @@ export default function LandingPage() {
                 Sahabat Hukum Terpadu Kejaksaan Negeri Cimahi. Platform layanan hukum digital yang hadir sepenuh hati untuk pengaduan masyarakat, konsultasi, edukasi hukum, dan helpdesk terintegrasi WhatsApp.
               </motion.p>
 
-              <motion.div variants={fadeUp} className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start">
-                <Link href="/lapor">
+              <motion.div
+                variants={fadeUp}
+                className="flex flex-col md:flex-row md:flex-wrap gap-3 justify-center lg:justify-start md:items-stretch"
+              >
+                <Link href="/lapor" className="w-full md:w-auto shrink-0">
                   <Button
                     size="lg"
-                    className="font-bold rounded px-8 h-12 text-sm w-full sm:w-auto"
+                    className="font-bold rounded px-8 h-12 text-sm w-full md:w-auto"
                     style={{ backgroundColor: "#f0b429", color: "#071f0d" }}
                   >
                     <FileText className="w-4 h-4 mr-2" />
                     Buat Pengaduan via Web
                   </Button>
                 </Link>
-                <a href="https://wa.me/6285155409070" target="_blank" rel="noopener noreferrer">
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    className="font-semibold rounded px-8 h-12 text-sm w-full sm:w-auto"
-                    style={{ borderColor: "rgba(240,180,41,0.4)", color: "#f0b429", backgroundColor: "transparent" }}
+                <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto md:flex-1 md:min-w-0 justify-center lg:justify-start">
+                  <a
+                    href="https://wa.me/6285155409070"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block w-full md:w-auto shrink-0 min-w-0"
                   >
-                    <Phone className="w-4 h-4 mr-2" />
-                    Konsultasi via WhatsApp
-                  </Button>
-                </a>
+                    <Button
+                      size="lg"
+                      variant="outline"
+                      className="font-semibold rounded px-8 h-12 text-sm w-full md:w-auto"
+                      style={{ borderColor: "rgba(240,180,41,0.4)", color: "#f0b429", backgroundColor: "transparent" }}
+                    >
+                      <Phone className="w-4 h-4 mr-2" />
+                      Konsultasi via WhatsApp
+                    </Button>
+                  </a>
+                  <Link href="/cek-status" className="block w-full md:w-auto shrink-0 min-w-0">
+                    <Button
+                      size="lg"
+                      variant="outline"
+                      className="font-semibold rounded px-8 h-12 text-sm w-full md:w-auto"
+                      style={{ borderColor: "rgba(240,180,41,0.35)", color: "#c8e6d0", backgroundColor: "rgba(7,31,13,0.35)" }}
+                    >
+                      <FileSearch className="w-4 h-4 mr-2" style={{ color: "#f0b429" }} />
+                      Cek Status Laporan
+                    </Button>
+                  </Link>
+                </div>
               </motion.div>
-              <motion.p variants={fadeUp} className="mt-4 text-center lg:text-left text-sm">
-                <Link
-                  href="/cek-status"
-                  className="inline-flex items-center gap-1.5 font-medium underline-offset-4 hover:underline"
-                  style={{ color: "#c8e6d0" }}
-                >
-                  <FileSearch className="w-4 h-4 opacity-90" style={{ color: "#f0b429" }} />
-                  Sudah punya nomor laporan? Cek perkembangan di sini.
-                </Link>
-              </motion.p>
 
               <motion.div variants={fadeUp} className="flex items-center gap-5 mt-8 justify-center lg:justify-start">
                 {[
