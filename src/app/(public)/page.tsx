@@ -193,44 +193,46 @@ export default function LandingPage() {
 
               <motion.div
                 variants={fadeUp}
-                className="flex flex-col md:flex-row md:flex-wrap gap-3 justify-center lg:justify-start md:items-stretch"
+                className="flex flex-col md:flex-row md:flex-wrap gap-3 justify-center lg:justify-start lg:gap-2.5 xl:gap-3 max-w-full min-w-0"
               >
-                <Link href="/lapor" className="w-full md:w-auto shrink-0">
+                <Link href="/lapor" className="w-full md:w-auto shrink-0 lg:max-w-max">
                   <Button
                     size="lg"
-                    className="font-bold rounded px-8 h-12 text-sm w-full md:w-auto"
+                    className="font-bold rounded px-8 h-12 text-sm w-full md:w-auto lg:h-11 lg:px-6 whitespace-nowrap"
                     style={{ backgroundColor: "#f0b429", color: "#071f0d" }}
                   >
-                    <FileText className="w-4 h-4 mr-2" />
+                    <FileText className="w-4 h-4 mr-2 shrink-0" />
                     Buat Pengaduan via Web
                   </Button>
                 </Link>
-                <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto md:flex-1 md:min-w-0 justify-center lg:justify-start">
+                <div className="flex flex-col md:flex-row md:flex-wrap gap-3 lg:gap-2 w-full md:w-auto md:max-w-full min-w-0 justify-center lg:justify-start">
                   <a
                     href="https://wa.me/6285155409070"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block w-full md:w-auto shrink-0 min-w-0"
+                    className="block w-full md:w-auto min-w-0 shrink"
                   >
                     <Button
                       size="lg"
                       variant="outline"
-                      className="font-semibold rounded px-8 h-12 text-sm w-full md:w-auto"
+                      className="font-semibold rounded px-8 h-12 text-sm w-full md:w-auto lg:h-10 lg:min-h-10 lg:px-4 lg:text-xs whitespace-nowrap"
                       style={{ borderColor: "rgba(240,180,41,0.4)", color: "#f0b429", backgroundColor: "transparent" }}
                     >
-                      <Phone className="w-4 h-4 mr-2" />
-                      Konsultasi via WhatsApp
+                      <Phone className="w-4 h-4 mr-2 shrink-0 lg:w-3.5 lg:h-3.5" />
+                      <span className="lg:hidden">Konsultasi via WhatsApp</span>
+                      <span className="hidden lg:inline">Konsultasi WA</span>
                     </Button>
                   </a>
-                  <Link href="/cek-status" className="block w-full md:w-auto shrink-0 min-w-0">
+                  <Link href="/cek-status" className="block w-full md:w-auto min-w-0 shrink">
                     <Button
                       size="lg"
                       variant="outline"
-                      className="font-semibold rounded px-8 h-12 text-sm w-full md:w-auto"
+                      className="font-semibold rounded px-8 h-12 text-sm w-full md:w-auto lg:h-10 lg:min-h-10 lg:px-4 lg:text-xs whitespace-nowrap"
                       style={{ borderColor: "rgba(240,180,41,0.35)", color: "#c8e6d0", backgroundColor: "rgba(7,31,13,0.35)" }}
                     >
-                      <FileSearch className="w-4 h-4 mr-2" style={{ color: "#f0b429" }} />
-                      Cek Status Laporan
+                      <FileSearch className="w-4 h-4 mr-2 shrink-0 lg:w-3.5 lg:h-3.5" style={{ color: "#f0b429" }} />
+                      <span className="lg:hidden">Cek Status Laporan</span>
+                      <span className="hidden lg:inline">Cek status</span>
                     </Button>
                   </Link>
                 </div>
@@ -250,16 +252,16 @@ export default function LandingPage() {
               </motion.div>
             </div>
 
-            <motion.div variants={fadeUp} className="flex-shrink-0 hidden lg:block">
+            <motion.div variants={fadeUp} className="flex-shrink-0 hidden lg:block self-center">
               <div
-                className="w-48 h-48 rounded-full flex items-center justify-center shadow-2xl p-4"
+                className="w-40 h-40 xl:w-44 xl:h-44 rounded-full flex items-center justify-center shadow-2xl p-3 xl:p-4"
                 style={{ backgroundColor: "rgba(240,180,41,0.08)", border: "2px solid rgba(240,180,41,0.25)" }}
               >
                 <Image
                   src="/logo-kejari.svg"
                   alt="Logo SAHATE Kejari Cimahi"
-                  width={152}
-                  height={152}
+                  width={140}
+                  height={140}
                   className="object-contain drop-shadow-lg"
                   onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                 />
