@@ -28,6 +28,7 @@ import {
   Info,
   TicketSlash,
   Globe,
+  FileSearch,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -98,15 +99,28 @@ export default function LandingPage() {
               </div>
             </div>
           </div>
-          <Link href="/lapor">
-            <Button
-              size="sm"
-              className="font-bold rounded text-sm px-5"
-              style={{ backgroundColor: "#f0b429", color: "#071f0d" }}
-            >
-              Akses Layanan
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2 shrink-0">
+            <Link href="/cek-status">
+              <Button
+                size="sm"
+                variant="outline"
+                className="font-semibold rounded text-xs sm:text-sm px-3 sm:px-4 border-[rgba(240,180,41,0.45)]"
+                style={{ color: "#f0b429", backgroundColor: "transparent" }}
+              >
+                <FileSearch className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1 sm:mr-1.5" />
+                Cek Status
+              </Button>
+            </Link>
+            <Link href="/lapor">
+              <Button
+                size="sm"
+                className="font-bold rounded text-xs sm:text-sm px-3 sm:px-5"
+                style={{ backgroundColor: "#f0b429", color: "#071f0d" }}
+              >
+                Akses Layanan
+              </Button>
+            </Link>
+          </div>
         </div>
       </nav>
 
@@ -199,6 +213,16 @@ export default function LandingPage() {
                   </Button>
                 </a>
               </motion.div>
+              <motion.p variants={fadeUp} className="mt-4 text-center lg:text-left text-sm">
+                <Link
+                  href="/cek-status"
+                  className="inline-flex items-center gap-1.5 font-medium underline-offset-4 hover:underline"
+                  style={{ color: "#c8e6d0" }}
+                >
+                  <FileSearch className="w-4 h-4 opacity-90" style={{ color: "#f0b429" }} />
+                  Sudah punya nomor laporan? Cek perkembangan di sini.
+                </Link>
+              </motion.p>
 
               <motion.div variants={fadeUp} className="flex items-center gap-5 mt-8 justify-center lg:justify-start">
                 {[
@@ -492,15 +516,26 @@ export default function LandingPage() {
           <motion.p variants={fadeUp} className="mb-7 text-sm" style={{ color: "#a8d5b5" }}>
             Laporan Anda adalah kontribusi nyata untuk mewujudkan penegakan hukum yang adil di Kota Cimahi.
           </motion.p>
-          <motion.div variants={fadeUp}>
+          <motion.div variants={fadeUp} className="flex flex-col sm:flex-row gap-3 justify-center items-center">
             <Link href="/lapor">
               <Button
                 size="lg"
-                className="font-bold rounded px-10 h-12 shadow-lg"
+                className="font-bold rounded px-10 h-12 shadow-lg w-full sm:w-auto"
                 style={{ backgroundColor: "#f0b429", color: "#071f0d" }}
               >
                 Mulai Laporan Sekarang
                 <ArrowRight className="ml-2 w-4 h-4" />
+              </Button>
+            </Link>
+            <Link href="/cek-status">
+              <Button
+                size="lg"
+                variant="outline"
+                className="font-semibold rounded px-8 h-12 w-full sm:w-auto border-[rgba(240,180,41,0.45)]"
+                style={{ color: "#f0b429", backgroundColor: "transparent" }}
+              >
+                <FileSearch className="mr-2 w-4 h-4" />
+                Cek Status Laporan
               </Button>
             </Link>
           </motion.div>
@@ -543,6 +578,18 @@ export default function LandingPage() {
 
             {/* Kontak */}
             <div>
+              <div className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: "#f0b429" }}>Tautan</div>
+              <div className="space-y-2 mb-6">
+                <Link href="/cek-status" className="flex items-center gap-2 text-xs transition-colors hover:opacity-80" style={{ color: "#a8d5b5" }}>
+                  <FileSearch className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "#f0b429" }} />
+                  Cek status laporan
+                </Link>
+                <Link href="/lapor" className="flex items-center gap-2 text-xs transition-colors hover:opacity-80" style={{ color: "#a8d5b5" }}>
+                  <FileText className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "#f0b429" }} />
+                  Buat laporan baru
+                </Link>
+              </div>
+
               <div className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: "#f0b429" }}>Hubungi Kami</div>
               <div className="space-y-2">
                 <a href="tel:085155409070" className="flex items-center gap-2 text-xs transition-colors hover:opacity-80" style={{ color: "#a8d5b5" }}>
