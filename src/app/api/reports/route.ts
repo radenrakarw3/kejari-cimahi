@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { reports, categories, verification, reportAttachments } from "@/lib/schema";
+import { reports, categories, reportAttachments } from "@/lib/schema";
 import { insertReportSchema } from "@/lib/schema";
 import { generateNomorLaporan } from "@/lib/nomor-laporan";
 import { buildPublicSurveyUrl } from "@/lib/public-app-url";
 import { sendWhatsApp, buildConfirmationMessage, normalizePhone } from "@/lib/whatsapp";
 import { broadcastSseEvent } from "@/lib/sse";
 import { auth } from "@/lib/auth";
-import { eq, desc, ilike, and, count, gte } from "drizzle-orm";
+import { eq, desc, ilike, and, count } from "drizzle-orm";
 import { z } from "zod";
 import { createReportAuditLog } from "@/lib/report-audit";
 import { persistReportAttachments } from "@/lib/report-files";
@@ -15,7 +15,6 @@ import { persistReportAttachments } from "@/lib/report-files";
 type ReportRequestBody = Record<string, unknown> & {
   source?: string;
   isAnonymous?: boolean;
-  waVerificationId?: string;
   kategoriId?: string | number | null;
   priorityLevel?: string;
   priorityReason?: string;
@@ -38,7 +37,6 @@ async function parseReportRequest(req: NextRequest): Promise<{
         isAnonymous: formData.get("isAnonymous") === "true",
         nama: String(formData.get("nama") ?? ""),
         nomorWa: String(formData.get("nomorWa") ?? ""),
-        waVerificationId: String(formData.get("waVerificationId") ?? ""),
         kelurahan: String(formData.get("kelurahan") ?? ""),
         rw: String(formData.get("rw") ?? ""),
         kategoriId: String(formData.get("kategoriId") ?? ""),
@@ -60,8 +58,6 @@ export async function POST(req: NextRequest) {
     const { body, attachments } = await parseReportRequest(req);
     const isOffline = body.source === "offline";
     const isAnonymous = body.isAnonymous === true;
-    const waVerificationId =
-      typeof body.waVerificationId === "string" ? body.waVerificationId.trim() : "";
     const offlineSchema = insertReportSchema.extend({
       nomorWa: z.string().regex(/^(08|628)\d{8,12}$/).or(z.string().length(0)),
     });
@@ -90,39 +86,6 @@ export async function POST(req: NextRequest) {
         { error: "Validasi gagal", details: parsed.error.flatten() },
         { status: 400 }
       );
-    }
-
-    if (!isOffline && !isAnonymous) {
-      if (!waVerificationId) {
-        return NextResponse.json(
-          { error: "Nomor WhatsApp harus diverifikasi dengan OTP terlebih dahulu" },
-          { status: 400 }
-        );
-      }
-
-      const normalizedPhone = normalizePhone(parsed.data.nomorWa);
-      const [verifiedWa] = await db
-        .select({
-          id: verification.id,
-        })
-        .from(verification)
-        .where(
-          and(
-            eq(verification.id, waVerificationId),
-            eq(verification.identifier, `wa_verified:${normalizedPhone}`),
-            gte(verification.expiresAt, new Date())
-          )
-        )
-        .limit(1);
-
-      if (!verifiedWa) {
-        return NextResponse.json(
-          { error: "Verifikasi OTP tidak valid atau sudah kedaluwarsa" },
-          { status: 400 }
-        );
-      }
-
-      await db.delete(verification).where(eq(verification.id, waVerificationId));
     }
 
     if (kategoriId !== null) {

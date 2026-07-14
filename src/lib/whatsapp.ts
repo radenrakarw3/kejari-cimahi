@@ -93,14 +93,6 @@ export function buildConfirmationMessage(
   return parts.join("\n");
 }
 
-export function buildOtpMessage(code: string): string {
-  return [
-    `Ini kode verifikasi SAHATE: ${code}.`,
-    "Masukkan 4 angka di layar pengajuan laporan untuk membuktikan nomor ini milik Anda.",
-    "Berlaku 10 menit. Demi keamanan data Anda, jangan teruskan kode ini ke orang lain.",
-  ].join("\n");
-}
-
 export function buildDisposisiMessage(
   nama: string,
   nomorLaporan: string,

@@ -19,7 +19,6 @@ import { KELURAHAN_CIMAHI, RW_OPTIONS } from "@/lib/kelurahan";
 import {
   ArrowLeft,
   ArrowRight,
-  Check,
   Send,
   Paperclip,
   User,
@@ -40,7 +39,6 @@ interface FormData {
   isAnonymous: boolean | null;
   nama: string;
   nomorWa: string;
-  waVerificationId: string;
   kelurahan: string;
   rw: string;
   kategoriId: string;
@@ -141,18 +139,11 @@ export function ReportWizard() {
   const [direction, setDirection] = useState(1);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
-  const [sendingOtp, setSendingOtp] = useState(false);
-  const [verifyingOtp, setVerifyingOtp] = useState(false);
-  const [otpCode, setOtpCode] = useState("");
-  const [otpSent, setOtpSent] = useState(false);
-  const [otpVerified, setOtpVerified] = useState(false);
-  const [otpResendIn, setOtpResendIn] = useState(0);
   const [attachments, setAttachments] = useState<File[]>([]);
   const [formData, setFormData] = useState<FormData>({
     isAnonymous: null,
     nama: "",
     nomorWa: "",
-    waVerificationId: "",
     kelurahan: "",
     rw: "",
     kategoriId: "",
@@ -184,34 +175,10 @@ export function ReportWizard() {
     loadCategories();
   }, []);
 
-  useEffect(() => {
-    if (otpResendIn <= 0) return;
-    const timer = window.setInterval(() => {
-      setOtpResendIn((prev) => (prev <= 1 ? 0 : prev - 1));
-    }, 1000);
-
-    return () => window.clearInterval(timer);
-  }, [otpResendIn]);
-
-  const resetOtpState = () => {
-    setOtpCode("");
-    setOtpSent(false);
-    setOtpVerified(false);
-    setOtpResendIn(0);
-    setFormData((prev) => ({ ...prev, waVerificationId: "" }));
-  };
-
   const updateField = (field: keyof FormData, value: string) => {
-    if (field === "nomorWa") {
-      setOtpCode("");
-      setOtpSent(false);
-      setOtpVerified(false);
-      setOtpResendIn(0);
-    }
     setFormData((prev) => ({
       ...prev,
       [field]: value,
-      ...(field === "nomorWa" ? { waVerificationId: "" } : {}),
     }));
     setErrors((prev) => ({ ...prev, [field]: "" }));
   };
@@ -222,11 +189,7 @@ export function ReportWizard() {
       isAnonymous,
       nama: isAnonymous ? "" : prev.nama,
       nomorWa: isAnonymous ? "" : prev.nomorWa,
-      waVerificationId: isAnonymous ? "" : prev.waVerificationId,
     }));
-    if (isAnonymous) {
-      resetOtpState();
-    }
     setErrors({});
   };
 
@@ -248,79 +211,7 @@ export function ReportWizard() {
       return false;
     }
 
-    if (field === "nomorWa" && !otpVerified) {
-      setErrors({ nomorWa: "Verifikasi OTP 4 digit wajib diselesaikan terlebih dahulu" });
-      return false;
-    }
-
     return true;
-  };
-
-  const sendOtp = async () => {
-    const result = stepSchemas.nomorWa.safeParse({ nomorWa: formData.nomorWa });
-    if (!result.success) {
-      const fieldErrors = result.error.flatten().fieldErrors as Record<string, string[] | undefined>;
-      setErrors({ nomorWa: fieldErrors.nomorWa?.[0] ?? "Nomor WhatsApp tidak valid" });
-      return;
-    }
-
-    setSendingOtp(true);
-    try {
-      const res = await fetch("/api/public/wa-otp/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nomorWa: formData.nomorWa }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error ?? "Gagal mengirim OTP");
-      }
-
-      setOtpSent(true);
-      setOtpVerified(false);
-      setOtpCode("");
-      setOtpResendIn(data.resendInSeconds ?? 60);
-      setFormData((prev) => ({ ...prev, waVerificationId: "" }));
-      setErrors({});
-      toast.success("OTP 4 digit berhasil dikirim ke WhatsApp");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Gagal mengirim OTP");
-    } finally {
-      setSendingOtp(false);
-    }
-  };
-
-  const verifyOtp = async () => {
-    if (!/^\d{4}$/.test(otpCode)) {
-      setErrors({ otp: "Masukkan 4 digit OTP" });
-      return;
-    }
-
-    setVerifyingOtp(true);
-    try {
-      const res = await fetch("/api/public/wa-otp/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nomorWa: formData.nomorWa, otp: otpCode }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error ?? "OTP tidak valid");
-      }
-
-      setOtpVerified(true);
-      setErrors((prev) => ({ ...prev, nomorWa: "", otp: "" }));
-      setFormData((prev) => ({ ...prev, waVerificationId: data.verificationId }));
-      toast.success("Nomor WhatsApp berhasil diverifikasi");
-    } catch (error) {
-      setOtpVerified(false);
-      setFormData((prev) => ({ ...prev, waVerificationId: "" }));
-      setErrors({ otp: error instanceof Error ? error.message : "OTP tidak valid" });
-    } finally {
-      setVerifyingOtp(false);
-    }
   };
 
   const handleNext = () => {
@@ -342,7 +233,6 @@ export function ReportWizard() {
       payload.set("isAnonymous", String(formData.isAnonymous === true));
       payload.set("nama", formData.isAnonymous ? "Anonim" : formData.nama);
       payload.set("nomorWa", formData.isAnonymous ? "" : formData.nomorWa);
-      payload.set("waVerificationId", formData.waVerificationId);
       payload.set("kelurahan", formData.kelurahan);
       payload.set("rw", formData.rw);
       payload.set("kategoriId", formData.kategoriId);
@@ -568,55 +458,7 @@ export function ReportWizard() {
                   autoFocus
                 />
                 {errors.nomorWa && <p className="text-xs mt-1" style={errorStyle}>{errors.nomorWa}</p>}
-                <div className="mt-3 flex flex-col gap-3 rounded-2xl p-3" style={{ backgroundColor: "rgba(240,180,41,0.06)", border: "1px solid rgba(240,180,41,0.12)" }}>
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <Button
-                      type="button"
-                      onClick={sendOtp}
-                      disabled={sendingOtp || otpResendIn > 0}
-                      className="rounded-xl text-sm sm:flex-1"
-                      style={{ backgroundColor: "#f0b429", color: "#071f0d" }}
-                    >
-                      {sendingOtp ? "Mengirim OTP..." : otpResendIn > 0 ? `Kirim Ulang ${otpResendIn}s` : otpSent ? "Kirim Ulang OTP" : "Kirim OTP"}
-                    </Button>
-                    {otpVerified && (
-                      <div className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold" style={{ backgroundColor: "rgba(74,222,128,0.12)", color: "#86efac" }}>
-                        <Check className="w-4 h-4" />
-                        Terverifikasi
-                      </div>
-                    )}
-                  </div>
-
-                  {otpSent && (
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium" style={labelStyle}>Kode OTP 4 Digit</Label>
-                      <div className="flex flex-col gap-2 sm:flex-row">
-                        <Input
-                          placeholder="1234"
-                          value={otpCode}
-                          onChange={(e) => {
-                            setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 4));
-                            setErrors((prev) => ({ ...prev, otp: "" }));
-                          }}
-                          inputMode="numeric"
-                          className="h-12 rounded-xl text-sm placeholder:opacity-40 sm:flex-1"
-                          style={inputStyle}
-                        />
-                        <Button
-                          type="button"
-                          onClick={verifyOtp}
-                          disabled={verifyingOtp || otpVerified}
-                          className="rounded-xl text-sm"
-                          style={{ backgroundColor: otpVerified ? "#145228" : "#f0b429", color: otpVerified ? "#86efac" : "#071f0d" }}
-                        >
-                          {verifyingOtp ? "Memverifikasi..." : otpVerified ? "OTP Valid" : "Verifikasi OTP"}
-                        </Button>
-                      </div>
-                      {errors.otp && <p className="text-xs" style={errorStyle}>{errors.otp}</p>}
-                    </div>
-                  )}
-                </div>
-                <p className="text-xs" style={{ color: "rgba(168,213,181,0.5)" }}>Konfirmasi laporan akan dikirim ke nomor ini setelah OTP berhasil diverifikasi</p>
+                <p className="text-xs" style={{ color: "rgba(168,213,181,0.5)" }}>Konfirmasi laporan akan dikirim ke nomor ini</p>
               </div>
             )}
 
